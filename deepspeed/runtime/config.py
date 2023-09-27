@@ -879,6 +879,11 @@ class DeepSpeedConfig(object):
 
         self.nebula_config = DeepSpeedNebulaConfig(param_dict)
 
+
+        if "veloc_config" in param_dict.keys():
+            self.veloc_config = {}
+            self.veloc_config["enabled"] = True
+
         self.weight_quantization_config = WeightQuantConfig(
             **param_dict['weight_quantization']) if 'weight_quantization' in param_dict else None
 
