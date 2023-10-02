@@ -6,10 +6,10 @@
 import distutils.spawn
 import subprocess
 
-from .builder import OpBuilder
+from .builder import CUDAOpBuilder
 
 
-class VelocCkptBuilder(OpBuilder):
+class VelocCkptBuilder(CUDAOpBuilder):
     BUILD_VAR = "DS_BUILD_VELOC_CKPT"
     NAME = "veloc_ckpt"
 
@@ -21,29 +21,33 @@ class VelocCkptBuilder(OpBuilder):
 
     def sources(self):
         return [
-            'csrc/veloc/deepspeed_py_veloc.cpp'
+            'csrc/veloc/deepspeed_py_veloc.cu', 'csrc/veloc/py_ds_veloc.cpp'
         ]
 
     def include_paths(self):
         return ['csrc/veloc']
-
+    
     def cxx_args(self):
-        # -O0 for improved debugging, since performance is bound by I/O
-        CPU_ARCH = self.cpu_arch()
-        SIMD_WIDTH = self.simd_width()
-        return [
-            '-g',
-            '-Wall',
-            '-O0',
-            '-std=c++14',
-            '-shared',
-            '-fPIC',
-            '-Wno-reorder',
-            CPU_ARCH,
-            '-fopenmp',
-            SIMD_WIDTH,
-        ]
+        args = super().cxx_args()
+        return args + self.version_dependent_macros()
 
+    def nvcc_args(self):
+        nvcc_flags = ['-O3'] + self.version_dependent_macros()
+        return nvcc_flags
 
-    def is_compatible(self, verbose=True):
-        return super().is_compatible(verbose)
+    # def cxx_args(self):
+    #     # -O0 for improved debugging, since performance is bound by I/O
+    #     CPU_ARCH = self.cpu_arch()
+    #     SIMD_WIDTH = self.simd_width()
+    #     return [
+    #         '-g',
+    #         '-Wall',
+    #         '-O0',
+    #         '-std=c++14',
+    #         '-shared',
+    #         '-fPIC',
+    #         '-Wno-reorder',
+    #         CPU_ARCH,
+    #         '-fopenmp',
+    #         SIMD_WIDTH,
+    #     ]

@@ -11,9 +11,9 @@ from threading import Thread, Condition, Lock
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
 from collections import OrderedDict
-import os, time
-import shutil
-from deepspeed.ops.op_builder import AsyncIOBuilder
+import time
+from deepspeed.ops.op_builder import VelocCkptBuilder
+
 from deepspeed.runtime.swap_tensor.constants import *
 
 class VELOCCheckpointEngine(CheckpointEngine):
@@ -31,57 +31,10 @@ class VELOCCheckpointEngine(CheckpointEngine):
         h2l_lock = Lock()
         self.d2h_cond = Condition(lock=d2h_lock)
         self.h2l_cond = Condition(lock=h2l_lock)
+        self.ckpt_engine = VelocCkptBuilder().load().veloc_ckpt_handle(config_params["veloc_config"]["host_cache"] << 30)
         # aio_op = AsyncIOBuilder().load()
         # aio_config = config_params["aio_config"]
         # self.aio_handle = aio_op.aio_handle(aio_config[AIO_BLOCK_SIZE], aio_config[AIO_QUEUE_DEPTH], aio_config[AIO_SINGLE_SUBMIT], aio_config[AIO_OVERLAP_EVENTS], aio_config[AIO_THREAD_COUNT])
-
-    @instrument_w_nvtx
-    def _d2h_copy(self):
-        try:
-            torch.cuda.stream(self.d2h_stream)
-            while not self.d2h_queue.empty():
-                with self.d2h_cond:
-                    ckpt = self.d2h_queue.get()
-                    self.d2h_cond.notify_all()
-                # ckpt["data"] = self._to_cpu(ckpt["data"], {})
-                # time.sleep(500000)
-                torch.save(ckpt["data"], f"/dev/shm/{os.path.basename(ckpt['path'])}")
-                logger.info(f"[VELOC] From _d2h_copy, completed torch.save to /dev/shm for {os.path.basename(ckpt['path'])}")
-                with self.d2h_cond:
-                    self.d2h_processing -= 1
-                    self.d2h_cond.notify_all()
-                with self.h2l_cond:
-                    self.h2l_processing += 1
-                    # self.h2l_queue.put(ckpt['path'])
-                    self.h2l_queue.put(ckpt)
-                    self.h2l_cond.notify_all()
-                if (self.h2l_processing == 1):
-                    executor = ThreadPoolExecutor(max_workers=1)
-                    f = executor.submit(self._d2h_copy)
-                    self.h2l_futures.append(f)
-                logger.info(f"[VELOC] From _d2h_copy, completed notifying to h2f thread for {os.path.basename(ckpt['path'])}")
-        except Exception as exc:
-            logger.info(f"[VELOC] From _d2h_copy, generated exception: {exc}")
-
-    @instrument_w_nvtx
-    def _h2l_copy(self):
-        try:
-            torch.cuda.stream(self.d2h_stream)
-            while not self.h2l_queue.empty():
-                with self.h2l_cond:
-                    v = self.h2l_queue.get(block=True)
-                    self.h2l_cond.notify()
-                shutil.move(f"/dev/shm/{os.path.basename(v)}", v)
-                logger.info(f"[VELOC] From _h2l_copy, completed transfer of {os.path.basename(v)}")
-                with self.h2l_cond:
-                    self.h2l_processing-=1
-                    self.h2l_cond.notify()
-                logger.info(f"[VELOC] From _h2l_copy, decremented count after {os.path.basename(v)}")
-        except Exception as exc:
-            logger.info(f"[VELOC] From _d2h_copy, generated exception: {exc}")
-
-    def _l2r_copy(self):
-        pass
 
     def create(self, tag):
         log_dist(f"[VELOC] Checkpoint {tag} is about to be saved!", ranks=[0])
@@ -110,18 +63,9 @@ class VELOCCheckpointEngine(CheckpointEngine):
     @instrument_w_nvtx
     def save(self, state_dict, path: str):
         try:
+            # import pdb; pdb.set_trace()
             t = time.time()
-            with self.d2h_cond:
-                logger.info(f"[VELOC] Time to get d2h_cond lock {path} in {time.time()-t}")    
-                self.d2h_queue.put({'data': state_dict, 'path': path})
-                self.d2h_processing += 1
-                self.d2h_cond.notify_all()
-            logger.info(f"[VELOC] Time to get d2h_cond put and notify {path} in {time.time()-t}")    
-            if (self.d2h_processing == 1):
-                logger.info(f"[VELOC] Starting threadpoolexecutor {path} in {time.time()-t}")    
-                executor = ThreadPoolExecutor(max_workers=1)
-                f = executor.submit(self._d2h_copy)
-                self.d2h_futures.append(f)
+            self.ckpt_engine.ckpt(dict(state_dict), path)
             logger.info(f"[VELOC] Added to background checkpointing {path} in {time.time()-t}")
             return None
         except Exception as exc:

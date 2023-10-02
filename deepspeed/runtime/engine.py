@@ -913,7 +913,7 @@ class DeepSpeedEngine(Module):
         if self._config is not None and self._config.veloc_config:
             from deepspeed.runtime.checkpoint_engine.veloc_checkpoint_engine import \
                     VELOCCheckpointEngine
-            self.checkpoint_engine = VELOCCheckpointEngine({"rank": rank, "local_rank": self.local_rank, "device": torch.cuda.current_device(), "aio_config": self._config.aio_config})
+            self.checkpoint_engine = VELOCCheckpointEngine({"rank": rank, "local_rank": self.local_rank, "device": torch.cuda.current_device(), "veloc_config": self._config.veloc_config})
         # only the first data parallel process needs to store the model checkpoint
         # if you want to use node local storage this must be done by rank 0 on each
         # node

@@ -881,8 +881,10 @@ class DeepSpeedConfig(object):
 
 
         if "veloc_config" in param_dict.keys():
-            self.veloc_config = {}
+            self.veloc_config = copy.deepcopy(param_dict["veloc_config"])
             self.veloc_config["enabled"] = True
+        else:
+            self.veloc_config = None
 
         self.weight_quantization_config = WeightQuantConfig(
             **param_dict['weight_quantization']) if 'weight_quantization' in param_dict else None
