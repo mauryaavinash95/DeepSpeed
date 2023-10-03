@@ -29,12 +29,16 @@ class VelocCkptBuilder(CUDAOpBuilder):
     
     def cxx_args(self):
         args = super().cxx_args()
-        return args + self.version_dependent_macros()
+        # return args + self.version_dependent_macros()
+        addn_args = ['-std=c++14', '-fopenmp', '-shared', '-fPIC', '-Wno-reorder']
+        return args + self.version_dependent_macros() + addn_args
 
     def nvcc_args(self):
-        nvcc_flags = ['-O3'] + self.version_dependent_macros()
+        nvcc_flags = ['-O3', '-std=c++14'] + self.version_dependent_macros()
         return nvcc_flags
 
+    def extra_ldflags(self):
+        return ['-lpthread']
     # def cxx_args(self):
     #     # -O0 for improved debugging, since performance is bound by I/O
     #     CPU_ARCH = self.cpu_arch()

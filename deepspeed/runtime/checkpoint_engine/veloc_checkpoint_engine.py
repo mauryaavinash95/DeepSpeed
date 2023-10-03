@@ -13,6 +13,7 @@ from queue import Queue
 from collections import OrderedDict
 import time
 from deepspeed.ops.op_builder import VelocCkptBuilder
+import sys
 
 from deepspeed.runtime.swap_tensor.constants import *
 
@@ -70,6 +71,7 @@ class VELOCCheckpointEngine(CheckpointEngine):
             return None
         except Exception as exc:
             logger.info(f"[VELOC] From save, generated exception: {exc}")
+            sys.exit(-1)
 
 
     def load(self, path: str, map_location=None):

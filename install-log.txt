@@ -51,3 +51,467 @@ Installing collected packages: deepspeed
     Uninstalling deepspeed-0.10.4+f8d3ec7f:
       Successfully uninstalled deepspeed-0.10.4+f8d3ec7f
 Successfully installed deepspeed-0.10.4+f8d3ec7f
+Looking in indexes: https://pypi.org/simple, https://pypi.ngc.nvidia.com
+Processing /home/amaurya/dl-io/DeepSpeed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Collecting hjson (from deepspeed==0.10.4+e78a15ed)
+  Downloading hjson-3.1.0.tar.gz (40 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 40.5/40.5 kB 88.3 MB/s eta 0:00:00
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Collecting ninja (from deepspeed==0.10.4+e78a15ed)
+  Downloading ninja-1.11.1.tar.gz (27 kB)
+  Installing build dependencies: started
+  Installing build dependencies: still running...
+  Installing build dependencies: still running...
+  Installing build dependencies: still running...
+  Installing build dependencies: still running...
+  Installing build dependencies: still running...
+  Installing build dependencies: still running...
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: numpy in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.24.1)
+Collecting packaging>=20.0 (from deepspeed==0.10.4+e78a15ed)
+  Downloading packaging-23.2.tar.gz (146 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 146.7/146.7 kB 48.9 MB/s eta 0:00:00
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Collecting psutil (from deepspeed==0.10.4+e78a15ed)
+  Downloading psutil-5.9.5.tar.gz (493 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 493.5/493.5 kB 116.0 MB/s eta 0:00:00
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Collecting py-cpuinfo (from deepspeed==0.10.4+e78a15ed)
+  Downloading py-cpuinfo-9.0.0.tar.gz (104 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 104.7/104.7 kB 207.0 MB/s eta 0:00:00
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Collecting pydantic<2.0.0 (from deepspeed==0.10.4+e78a15ed)
+  Downloading pydantic-1.10.13.tar.gz (348 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 348.3/348.3 kB 238.2 MB/s eta 0:00:00
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Collecting tqdm (from deepspeed==0.10.4+e78a15ed)
+  Downloading tqdm-4.66.1.tar.gz (169 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 169.1/169.1 kB 233.3 MB/s eta 0:00:00
+  Installing build dependencies: started
+  Installing build dependencies: finished with status 'done'
+  Getting requirements to build wheel: started
+  Getting requirements to build wheel: finished with status 'done'
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Requirement already satisfied: typing-extensions>=4.2.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from pydantic<2.0.0->deepspeed==0.10.4+e78a15ed) (4.4.0)
+Building wheels for collected packages: deepspeed, packaging, pydantic, hjson, ninja, psutil, py-cpuinfo, tqdm
+  Building wheel for deepspeed (setup.py): started
+  Building wheel for deepspeed (setup.py): still running...
+  Building wheel for deepspeed (setup.py): still running...
+  Building wheel for deepspeed (setup.py): finished with status 'done'
+  Created wheel for deepspeed: filename=deepspeed-0.10.4+e78a15ed-cp310-cp310-linux_x86_64.whl size=66440348 sha256=21c84a28faf5633d55c3d74de28447914deca13e82125e0da2dd9fd5b31b095b
+  Stored in directory: /tmp/pip-ephem-wheel-cache-vdcivi_6/wheels/21/d4/57/e108abceab67e09ec2492320265351b83abd81027bce925dd9
+  Building wheel for packaging (pyproject.toml): started
+  Building wheel for packaging (pyproject.toml): finished with status 'done'
+  Created wheel for packaging: filename=packaging-23.2-py3-none-any.whl size=53011 sha256=f6a99fc6f2edcd10c7194f27328f1dd5e1a04d24720927bcf0879d6166868a62
+  Stored in directory: /tmp/pip-ephem-wheel-cache-vdcivi_6/wheels/82/8d/90/d7ce847a84ad13e6ef7bc77c90ab3c82db46eea2687ab243bb
+  Building wheel for pydantic (setup.py): started
+  Building wheel for pydantic (setup.py): finished with status 'done'
+  Created wheel for pydantic: filename=pydantic-1.10.13-py3-none-any.whl size=158608 sha256=65f1e75a5721473c1176b0b75f9e3761890214c03f1f40fadcf396f9fce8177c
+  Stored in directory: /tmp/pip-ephem-wheel-cache-vdcivi_6/wheels/9a/75/5d/994a9b6006fc7a6cca7b1213278200564957a4bb3bb681538d
+  Building wheel for hjson (setup.py): started
+  Building wheel for hjson (setup.py): finished with status 'done'
+  Created wheel for hjson: filename=hjson-3.1.0-py3-none-any.whl size=54018 sha256=43fc9c7d119a941a66997e33df056522da63a7fa8389f51e516773e1c63490e1
+  Stored in directory: /tmp/pip-ephem-wheel-cache-vdcivi_6/wheels/6c/d0/f7/31b7b04c4e42ecea4f69520870a8421be8a166f8e0b2d9ab92
+  Building wheel for ninja (pyproject.toml): started
+  Building wheel for ninja (pyproject.toml): finished with status 'done'
+  Created wheel for ninja: filename=ninja-1.11.1-cp310-cp310-linux_x86_64.whl size=129270 sha256=458078d7a32f086ba96a24a185ea7c5597544b30bf7eabd3e6d4a434f9db60c3
+  Stored in directory: /tmp/pip-ephem-wheel-cache-vdcivi_6/wheels/ef/1a/fb/858d1cae90791e6fb1a90407c5ec1a98cb71558d05ba56a676
+  Building wheel for psutil (pyproject.toml): started
+  Building wheel for psutil (pyproject.toml): finished with status 'done'
+  Created wheel for psutil: filename=psutil-5.9.5-cp310-abi3-linux_x86_64.whl size=281632 sha256=e7ce068dbc27992e1017ead35477d0f1bd0b465c811650fcd863aa81deda5c90
+  Stored in directory: /tmp/pip-ephem-wheel-cache-vdcivi_6/wheels/1f/3a/db/ba9717f3efd7f8da8910eca12dc9cd15d404035397af627e7c
+  Building wheel for py-cpuinfo (pyproject.toml): started
+  Building wheel for py-cpuinfo (pyproject.toml): finished with status 'done'
+  Created wheel for py-cpuinfo: filename=py_cpuinfo-9.0.0-py3-none-any.whl size=22315 sha256=c0f5b1842affde0c777492ec769de6069da158da5fdbff46d5d22c9683867ac3
+  Stored in directory: /tmp/pip-ephem-wheel-cache-vdcivi_6/wheels/ce/5e/c4/5d83c860ce6dc6431eaeb37284535e9e8da1220d1e72eec702
+  Building wheel for tqdm (pyproject.toml): started
+  Building wheel for tqdm (pyproject.toml): finished with status 'done'
+  Created wheel for tqdm: filename=tqdm-4.66.1-py3-none-any.whl size=78257 sha256=af80c29a2f6a06650136ec7dadd32843becfdbbc6f3ae8c10626dc695129d012
+  Stored in directory: /tmp/pip-ephem-wheel-cache-vdcivi_6/wheels/47/d6/7c/b5985ec12eeb5165f396eaaba0e5e8a378e91a69ce3147477d
+Successfully built deepspeed packaging pydantic hjson ninja psutil py-cpuinfo tqdm
+Installing collected packages: py-cpuinfo, ninja, hjson, tqdm, pydantic, psutil, packaging, deepspeed
+  Attempting uninstall: deepspeed
+    Found existing installation: deepspeed 0.10.1+57a27b08
+    Can't uninstall 'deepspeed'. No files were found to uninstall.
+Successfully installed deepspeed-0.10.4+e78a15ed hjson-3.1.0 ninja-1.11.1 packaging-23.2 psutil-5.9.5 py-cpuinfo-9.0.0 pydantic-1.10.13 tqdm-4.66.1
+Looking in indexes: https://pypi.org/simple, https://pypi.ngc.nvidia.com
+Processing /home/amaurya/dl-io/DeepSpeed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: hjson in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (3.1.0)
+Requirement already satisfied: ninja in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.11.1)
+Requirement already satisfied: numpy in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.24.1)
+Requirement already satisfied: packaging>=20.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (23.2)
+Requirement already satisfied: psutil in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (5.9.5)
+Requirement already satisfied: py-cpuinfo in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (9.0.0)
+Requirement already satisfied: pydantic<2.0.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.10.13)
+Requirement already satisfied: tqdm in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (4.66.1)
+Requirement already satisfied: typing-extensions>=4.2.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from pydantic<2.0.0->deepspeed==0.10.4+e78a15ed) (4.4.0)
+Building wheels for collected packages: deepspeed
+  Building wheel for deepspeed (setup.py): started
+  Building wheel for deepspeed (setup.py): finished with status 'done'
+  Created wheel for deepspeed: filename=deepspeed-0.10.4+e78a15ed-cp310-cp310-linux_x86_64.whl size=66440347 sha256=dd9d1ea9a88855202ac963662a512d89622c5d46b986c3ee38b59faeb2e99cd5
+  Stored in directory: /tmp/pip-ephem-wheel-cache-2mhpeckr/wheels/21/d4/57/e108abceab67e09ec2492320265351b83abd81027bce925dd9
+Successfully built deepspeed
+Installing collected packages: deepspeed
+  Attempting uninstall: deepspeed
+    Found existing installation: deepspeed 0.10.4+e78a15ed
+    Can't uninstall 'deepspeed'. No files were found to uninstall.
+Successfully installed deepspeed-0.10.4+e78a15ed
+Looking in indexes: https://pypi.org/simple, https://pypi.ngc.nvidia.com
+Processing /home/amaurya/dl-io/DeepSpeed
+Looking in indexes: https://pypi.org/simple, https://pypi.ngc.nvidia.com
+Processing /home/amaurya/dl-io/DeepSpeed
+Looking in indexes: https://pypi.org/simple, https://pypi.ngc.nvidia.com
+Processing /home/amaurya/dl-io/DeepSpeed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: hjson in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (3.1.0)
+Requirement already satisfied: ninja in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.11.1)
+Requirement already satisfied: numpy in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.24.1)
+Requirement already satisfied: packaging>=20.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (23.2)
+Requirement already satisfied: psutil in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (5.9.5)
+Requirement already satisfied: py-cpuinfo in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (9.0.0)
+Requirement already satisfied: pydantic<2.0.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.10.13)
+Requirement already satisfied: tqdm in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (4.66.1)
+Requirement already satisfied: typing-extensions>=4.2.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from pydantic<2.0.0->deepspeed==0.10.4+e78a15ed) (4.4.0)
+Building wheels for collected packages: deepspeed
+  Building wheel for deepspeed (setup.py): started
+  Building wheel for deepspeed (setup.py): finished with status 'done'
+  Created wheel for deepspeed: filename=deepspeed-0.10.4+e78a15ed-cp310-cp310-linux_x86_64.whl size=66440353 sha256=7fdabba77027f5eda0dd2465d72853e3a58f69949521726114792320fd25cff2
+  Stored in directory: /tmp/pip-ephem-wheel-cache-v9pz_6me/wheels/21/d4/57/e108abceab67e09ec2492320265351b83abd81027bce925dd9
+Successfully built deepspeed
+Installing collected packages: deepspeed
+  Attempting uninstall: deepspeed
+    Found existing installation: deepspeed 0.10.4+e78a15ed
+    Can't uninstall 'deepspeed'. No files were found to uninstall.
+Successfully installed deepspeed-0.10.4+e78a15ed
+Looking in indexes: https://pypi.org/simple, https://pypi.ngc.nvidia.com
+Processing /home/amaurya/dl-io/DeepSpeed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: hjson in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (3.1.0)
+Requirement already satisfied: ninja in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.11.1)
+Requirement already satisfied: numpy in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.24.1)
+Requirement already satisfied: packaging>=20.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (23.2)
+Requirement already satisfied: psutil in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (5.9.5)
+Requirement already satisfied: py-cpuinfo in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (9.0.0)
+Requirement already satisfied: pydantic<2.0.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.10.13)
+Requirement already satisfied: tqdm in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (4.66.1)
+Requirement already satisfied: typing-extensions>=4.2.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from pydantic<2.0.0->deepspeed==0.10.4+e78a15ed) (4.4.0)
+Building wheels for collected packages: deepspeed
+  Building wheel for deepspeed (setup.py): started
+  Building wheel for deepspeed (setup.py): still running...
+  Building wheel for deepspeed (setup.py): finished with status 'done'
+  Created wheel for deepspeed: filename=deepspeed-0.10.4+e78a15ed-cp310-cp310-linux_x86_64.whl size=66440083 sha256=2559fd496d8aceeb86a48da05f32f0bbc6ce518962817ddc50a407c6f28ea754
+  Stored in directory: /tmp/pip-ephem-wheel-cache-44rdqg41/wheels/21/d4/57/e108abceab67e09ec2492320265351b83abd81027bce925dd9
+Successfully built deepspeed
+Installing collected packages: deepspeed
+  Attempting uninstall: deepspeed
+    Found existing installation: deepspeed 0.10.4+e78a15ed
+    Can't uninstall 'deepspeed'. No files were found to uninstall.
+Successfully installed deepspeed-0.10.4+e78a15ed
+Looking in indexes: https://pypi.org/simple, https://pypi.ngc.nvidia.com
+Processing /home/amaurya/dl-io/DeepSpeed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: hjson in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (3.1.0)
+Requirement already satisfied: ninja in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.11.1)
+Requirement already satisfied: numpy in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.24.1)
+Requirement already satisfied: packaging>=20.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (23.2)
+Requirement already satisfied: psutil in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (5.9.5)
+Requirement already satisfied: py-cpuinfo in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (9.0.0)
+Requirement already satisfied: pydantic<2.0.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.10.13)
+Requirement already satisfied: tqdm in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (4.66.1)
+Requirement already satisfied: typing-extensions>=4.2.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from pydantic<2.0.0->deepspeed==0.10.4+e78a15ed) (4.4.0)
+Building wheels for collected packages: deepspeed
+  Building wheel for deepspeed (setup.py): started
+  Building wheel for deepspeed (setup.py): finished with status 'done'
+  Created wheel for deepspeed: filename=deepspeed-0.10.4+e78a15ed-cp310-cp310-linux_x86_64.whl size=66440110 sha256=55193dc80d85af0e1bf325ea96747db1984bc2c0a91d426b773af60242b87fa6
+  Stored in directory: /tmp/pip-ephem-wheel-cache-6g61bpi7/wheels/21/d4/57/e108abceab67e09ec2492320265351b83abd81027bce925dd9
+Successfully built deepspeed
+Installing collected packages: deepspeed
+  Attempting uninstall: deepspeed
+    Found existing installation: deepspeed 0.10.4+e78a15ed
+    Can't uninstall 'deepspeed'. No files were found to uninstall.
+Successfully installed deepspeed-0.10.4+e78a15ed
+Looking in indexes: https://pypi.org/simple, https://pypi.ngc.nvidia.com
+Processing /home/amaurya/dl-io/DeepSpeed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: hjson in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (3.1.0)
+Requirement already satisfied: ninja in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.11.1)
+Requirement already satisfied: numpy in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.24.1)
+Requirement already satisfied: packaging>=20.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (23.2)
+Requirement already satisfied: psutil in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (5.9.5)
+Requirement already satisfied: py-cpuinfo in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (9.0.0)
+Requirement already satisfied: pydantic<2.0.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.10.13)
+Requirement already satisfied: tqdm in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (4.66.1)
+Requirement already satisfied: typing-extensions>=4.2.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from pydantic<2.0.0->deepspeed==0.10.4+e78a15ed) (4.4.0)
+Building wheels for collected packages: deepspeed
+  Building wheel for deepspeed (setup.py): started
+  Building wheel for deepspeed (setup.py): finished with status 'done'
+  Created wheel for deepspeed: filename=deepspeed-0.10.4+e78a15ed-cp310-cp310-linux_x86_64.whl size=66440109 sha256=1deee7853d4afc2b43502b705ba657253ce0238842c07dc280b490b1b049904f
+  Stored in directory: /tmp/pip-ephem-wheel-cache-m8mhpg9o/wheels/21/d4/57/e108abceab67e09ec2492320265351b83abd81027bce925dd9
+Successfully built deepspeed
+Installing collected packages: deepspeed
+  Attempting uninstall: deepspeed
+    Found existing installation: deepspeed 0.10.4+e78a15ed
+    Can't uninstall 'deepspeed'. No files were found to uninstall.
+Successfully installed deepspeed-0.10.4+e78a15ed
+Looking in indexes: https://pypi.org/simple, https://pypi.ngc.nvidia.com
+Processing /home/amaurya/dl-io/DeepSpeed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: hjson in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (3.1.0)
+Requirement already satisfied: ninja in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.11.1)
+Requirement already satisfied: numpy in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.24.1)
+Requirement already satisfied: packaging>=20.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (23.2)
+Requirement already satisfied: psutil in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (5.9.5)
+Requirement already satisfied: py-cpuinfo in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (9.0.0)
+Requirement already satisfied: pydantic<2.0.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.10.13)
+Requirement already satisfied: tqdm in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (4.66.1)
+Requirement already satisfied: typing-extensions>=4.2.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from pydantic<2.0.0->deepspeed==0.10.4+e78a15ed) (4.4.0)
+Building wheels for collected packages: deepspeed
+  Building wheel for deepspeed (setup.py): started
+  Building wheel for deepspeed (setup.py): finished with status 'done'
+  Created wheel for deepspeed: filename=deepspeed-0.10.4+e78a15ed-cp310-cp310-linux_x86_64.whl size=66440107 sha256=ea8ccb55f8784748a56aecb6a3d5a10a31bb5f32a22c02057b1ec36df6be6e1a
+  Stored in directory: /tmp/pip-ephem-wheel-cache-kt_7_3ga/wheels/21/d4/57/e108abceab67e09ec2492320265351b83abd81027bce925dd9
+Successfully built deepspeed
+Installing collected packages: deepspeed
+  Attempting uninstall: deepspeed
+    Found existing installation: deepspeed 0.10.4+e78a15ed
+    Can't uninstall 'deepspeed'. No files were found to uninstall.
+Successfully installed deepspeed-0.10.4+e78a15ed
+Looking in indexes: https://pypi.org/simple, https://pypi.ngc.nvidia.com
+Processing /home/amaurya/dl-io/DeepSpeed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: hjson in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (3.1.0)
+Requirement already satisfied: ninja in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.11.1)
+Requirement already satisfied: numpy in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.24.1)
+Requirement already satisfied: packaging>=20.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (23.2)
+Requirement already satisfied: psutil in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (5.9.5)
+Requirement already satisfied: py-cpuinfo in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (9.0.0)
+Requirement already satisfied: pydantic<2.0.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.10.13)
+Requirement already satisfied: tqdm in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (4.66.1)
+Requirement already satisfied: typing-extensions>=4.2.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from pydantic<2.0.0->deepspeed==0.10.4+e78a15ed) (4.4.0)
+Building wheels for collected packages: deepspeed
+  Building wheel for deepspeed (setup.py): started
+  Building wheel for deepspeed (setup.py): finished with status 'error'
+  Running setup.py clean for deepspeed
+Failed to build deepspeed
+Looking in indexes: https://pypi.org/simple, https://pypi.ngc.nvidia.com
+Processing /home/amaurya/dl-io/DeepSpeed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: hjson in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (3.1.0)
+Requirement already satisfied: ninja in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.11.1)
+Requirement already satisfied: numpy in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.24.1)
+Requirement already satisfied: packaging>=20.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (23.2)
+Requirement already satisfied: psutil in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (5.9.5)
+Requirement already satisfied: py-cpuinfo in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (9.0.0)
+Requirement already satisfied: pydantic<2.0.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.10.13)
+Requirement already satisfied: tqdm in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (4.66.1)
+Requirement already satisfied: typing-extensions>=4.2.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from pydantic<2.0.0->deepspeed==0.10.4+e78a15ed) (4.4.0)
+Building wheels for collected packages: deepspeed
+  Building wheel for deepspeed (setup.py): started
+  Building wheel for deepspeed (setup.py): still running...
+  Building wheel for deepspeed (setup.py): finished with status 'done'
+  Created wheel for deepspeed: filename=deepspeed-0.10.4+e78a15ed-cp310-cp310-linux_x86_64.whl size=65714743 sha256=6fbb20464acabee363e7248fd1e54cd4e70458a7b39b47e55e06eafed9c3b66b
+  Stored in directory: /tmp/pip-ephem-wheel-cache-2vgv27pj/wheels/21/d4/57/e108abceab67e09ec2492320265351b83abd81027bce925dd9
+Successfully built deepspeed
+Installing collected packages: deepspeed
+  Attempting uninstall: deepspeed
+    Found existing installation: deepspeed 0.10.4+e78a15ed
+    Can't uninstall 'deepspeed'. No files were found to uninstall.
+Successfully installed deepspeed-0.10.4+e78a15ed
+Looking in indexes: https://pypi.org/simple, https://pypi.ngc.nvidia.com
+Processing /home/amaurya/dl-io/DeepSpeed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: hjson in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (3.1.0)
+Requirement already satisfied: ninja in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.11.1)
+Requirement already satisfied: numpy in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.24.1)
+Requirement already satisfied: packaging>=20.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (23.2)
+Requirement already satisfied: psutil in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (5.9.5)
+Requirement already satisfied: py-cpuinfo in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (9.0.0)
+Requirement already satisfied: pydantic<2.0.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.10.13)
+Requirement already satisfied: tqdm in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (4.66.1)
+Requirement already satisfied: typing-extensions>=4.2.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from pydantic<2.0.0->deepspeed==0.10.4+e78a15ed) (4.4.0)
+Building wheels for collected packages: deepspeed
+  Building wheel for deepspeed (setup.py): started
+  Building wheel for deepspeed (setup.py): finished with status 'done'
+  Created wheel for deepspeed: filename=deepspeed-0.10.4+e78a15ed-cp310-cp310-linux_x86_64.whl size=65714755 sha256=eed8e9f1681877cd633bd507d8916f73b6626e2e6beb1e985ce5d8ea3f01ceda
+  Stored in directory: /tmp/pip-ephem-wheel-cache-mxdzpiof/wheels/21/d4/57/e108abceab67e09ec2492320265351b83abd81027bce925dd9
+Successfully built deepspeed
+Installing collected packages: deepspeed
+  Attempting uninstall: deepspeed
+    Found existing installation: deepspeed 0.10.4+e78a15ed
+    Can't uninstall 'deepspeed'. No files were found to uninstall.
+Successfully installed deepspeed-0.10.4+e78a15ed
+Looking in indexes: https://pypi.org/simple, https://pypi.ngc.nvidia.com
+Processing /home/amaurya/dl-io/DeepSpeed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: hjson in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (3.1.0)
+Requirement already satisfied: ninja in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.11.1)
+Requirement already satisfied: numpy in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.24.1)
+Requirement already satisfied: packaging>=20.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (23.2)
+Requirement already satisfied: psutil in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (5.9.5)
+Requirement already satisfied: py-cpuinfo in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (9.0.0)
+Requirement already satisfied: pydantic<2.0.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.10.13)
+Requirement already satisfied: tqdm in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (4.66.1)
+Requirement already satisfied: typing-extensions>=4.2.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from pydantic<2.0.0->deepspeed==0.10.4+e78a15ed) (4.4.0)
+Building wheels for collected packages: deepspeed
+  Building wheel for deepspeed (setup.py): started
+  Building wheel for deepspeed (setup.py): finished with status 'error'
+  Running setup.py clean for deepspeed
+Failed to build deepspeed
+Looking in indexes: https://pypi.org/simple, https://pypi.ngc.nvidia.com
+Processing /home/amaurya/dl-io/DeepSpeed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: hjson in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (3.1.0)
+Requirement already satisfied: ninja in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.11.1)
+Requirement already satisfied: numpy in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.24.1)
+Requirement already satisfied: packaging>=20.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (23.2)
+Requirement already satisfied: psutil in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (5.9.5)
+Requirement already satisfied: py-cpuinfo in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (9.0.0)
+Requirement already satisfied: pydantic<2.0.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.10.13)
+Requirement already satisfied: tqdm in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (4.66.1)
+Requirement already satisfied: typing-extensions>=4.2.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from pydantic<2.0.0->deepspeed==0.10.4+e78a15ed) (4.4.0)
+Building wheels for collected packages: deepspeed
+  Building wheel for deepspeed (setup.py): started
+  Building wheel for deepspeed (setup.py): still running...
+  Building wheel for deepspeed (setup.py): finished with status 'done'
+  Created wheel for deepspeed: filename=deepspeed-0.10.4+e78a15ed-cp310-cp310-linux_x86_64.whl size=65713778 sha256=afd138e5ca0c3a31dd5bf36e0f425d09dfb4a4b7ddf5760817e8b589f5fa912e
+  Stored in directory: /tmp/pip-ephem-wheel-cache-u_2s7lf7/wheels/21/d4/57/e108abceab67e09ec2492320265351b83abd81027bce925dd9
+Successfully built deepspeed
+Installing collected packages: deepspeed
+  Attempting uninstall: deepspeed
+    Found existing installation: deepspeed 0.10.4+e78a15ed
+    Can't uninstall 'deepspeed'. No files were found to uninstall.
+Successfully installed deepspeed-0.10.4+e78a15ed
+Looking in indexes: https://pypi.org/simple, https://pypi.ngc.nvidia.com
+Processing /home/amaurya/dl-io/DeepSpeed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: hjson in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (3.1.0)
+Requirement already satisfied: ninja in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.11.1)
+Requirement already satisfied: numpy in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.24.1)
+Requirement already satisfied: packaging>=20.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (23.2)
+Requirement already satisfied: psutil in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (5.9.5)
+Requirement already satisfied: py-cpuinfo in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (9.0.0)
+Requirement already satisfied: pydantic<2.0.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.10.13)
+Requirement already satisfied: tqdm in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (4.66.1)
+Requirement already satisfied: typing-extensions>=4.2.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from pydantic<2.0.0->deepspeed==0.10.4+e78a15ed) (4.4.0)
+Building wheels for collected packages: deepspeed
+  Building wheel for deepspeed (setup.py): started
+  Building wheel for deepspeed (setup.py): still running...
+  Building wheel for deepspeed (setup.py): finished with status 'done'
+  Created wheel for deepspeed: filename=deepspeed-0.10.4+e78a15ed-cp310-cp310-linux_x86_64.whl size=65714369 sha256=e99b10d32c7633bcdd60bbabb142043424f07ed152904ae5cc8d48b6a2b62ab0
+  Stored in directory: /tmp/pip-ephem-wheel-cache-rl6udewi/wheels/21/d4/57/e108abceab67e09ec2492320265351b83abd81027bce925dd9
+Successfully built deepspeed
+Installing collected packages: deepspeed
+  Attempting uninstall: deepspeed
+    Found existing installation: deepspeed 0.10.4+e78a15ed
+    Can't uninstall 'deepspeed'. No files were found to uninstall.
+Successfully installed deepspeed-0.10.4+e78a15ed
+Looking in indexes: https://pypi.org/simple, https://pypi.ngc.nvidia.com
+Processing /home/amaurya/dl-io/DeepSpeed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: hjson in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (3.1.0)
+Requirement already satisfied: ninja in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.11.1)
+Requirement already satisfied: numpy in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.24.1)
+Requirement already satisfied: packaging>=20.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (23.2)
+Requirement already satisfied: psutil in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (5.9.5)
+Requirement already satisfied: py-cpuinfo in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (9.0.0)
+Requirement already satisfied: pydantic<2.0.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.10.13)
+Requirement already satisfied: tqdm in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (4.66.1)
+Requirement already satisfied: typing-extensions>=4.2.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from pydantic<2.0.0->deepspeed==0.10.4+e78a15ed) (4.4.0)
+Building wheels for collected packages: deepspeed
+  Building wheel for deepspeed (setup.py): started
+  Building wheel for deepspeed (setup.py): finished with status 'done'
+  Created wheel for deepspeed: filename=deepspeed-0.10.4+e78a15ed-cp310-cp310-linux_x86_64.whl size=65714361 sha256=4ab1f1ff7d5b8c73dea9d18b1b0c3c690718306500e95633dc884005ca2362bd
+  Stored in directory: /tmp/pip-ephem-wheel-cache-mpfv4u_j/wheels/21/d4/57/e108abceab67e09ec2492320265351b83abd81027bce925dd9
+Successfully built deepspeed
+Installing collected packages: deepspeed
+  Attempting uninstall: deepspeed
+    Found existing installation: deepspeed 0.10.4+e78a15ed
+    Can't uninstall 'deepspeed'. No files were found to uninstall.
+Successfully installed deepspeed-0.10.4+e78a15ed
+Looking in indexes: https://pypi.org/simple, https://pypi.ngc.nvidia.com
+Processing /home/amaurya/dl-io/DeepSpeed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: hjson in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (3.1.0)
+Requirement already satisfied: ninja in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.11.1)
+Requirement already satisfied: numpy in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.24.1)
+Requirement already satisfied: packaging>=20.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (23.2)
+Requirement already satisfied: psutil in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (5.9.5)
+Requirement already satisfied: py-cpuinfo in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (9.0.0)
+Requirement already satisfied: pydantic<2.0.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.10.13)
+Requirement already satisfied: tqdm in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (4.66.1)
+Requirement already satisfied: typing-extensions>=4.2.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from pydantic<2.0.0->deepspeed==0.10.4+e78a15ed) (4.4.0)
+Building wheels for collected packages: deepspeed
+  Building wheel for deepspeed (setup.py): started
+  Building wheel for deepspeed (setup.py): finished with status 'done'
+  Created wheel for deepspeed: filename=deepspeed-0.10.4+e78a15ed-cp310-cp310-linux_x86_64.whl size=65714359 sha256=61f409a6f096168c7066732e6ca5a8888fbfd6ea1e4666b6266fda7b8163210a
+  Stored in directory: /tmp/pip-ephem-wheel-cache-ilx5eoj0/wheels/21/d4/57/e108abceab67e09ec2492320265351b83abd81027bce925dd9
+Successfully built deepspeed
+Installing collected packages: deepspeed
+  Attempting uninstall: deepspeed
+    Found existing installation: deepspeed 0.10.4+e78a15ed
+    Can't uninstall 'deepspeed'. No files were found to uninstall.
+Successfully installed deepspeed-0.10.4+e78a15ed
+Looking in indexes: https://pypi.org/simple, https://pypi.ngc.nvidia.com
+Processing /home/amaurya/dl-io/DeepSpeed
+  Preparing metadata (setup.py): started
+  Preparing metadata (setup.py): finished with status 'done'
+Requirement already satisfied: hjson in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (3.1.0)
+Requirement already satisfied: ninja in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.11.1)
+Requirement already satisfied: numpy in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.24.1)
+Requirement already satisfied: packaging>=20.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (23.2)
+Requirement already satisfied: psutil in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (5.9.5)
+Requirement already satisfied: py-cpuinfo in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (9.0.0)
+Requirement already satisfied: pydantic<2.0.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (1.10.13)
+Requirement already satisfied: tqdm in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from deepspeed==0.10.4+e78a15ed) (4.66.1)
+Requirement already satisfied: typing-extensions>=4.2.0 in /home/amaurya/.conda/envs/ds_env/lib/python3.10/site-packages (from pydantic<2.0.0->deepspeed==0.10.4+e78a15ed) (4.4.0)
+Building wheels for collected packages: deepspeed
+  Building wheel for deepspeed (setup.py): started
+  Building wheel for deepspeed (setup.py): still running...
+  Building wheel for deepspeed (setup.py): finished with status 'done'
+  Created wheel for deepspeed: filename=deepspeed-0.10.4+e78a15ed-cp310-cp310-linux_x86_64.whl size=65714613 sha256=bdeeac5c935261422e5ed1aca0df37a0be59fe6b7868b84b05d952b7fd48db65
+  Stored in directory: /tmp/pip-ephem-wheel-cache-f8ygrw43/wheels/21/d4/57/e108abceab67e09ec2492320265351b83abd81027bce925dd9
+Successfully built deepspeed
+Installing collected packages: deepspeed
+  Attempting uninstall: deepspeed
+    Found existing installation: deepspeed 0.10.4+e78a15ed
+    Can't uninstall 'deepspeed'. No files were found to uninstall.
+Successfully installed deepspeed-0.10.4+e78a15ed

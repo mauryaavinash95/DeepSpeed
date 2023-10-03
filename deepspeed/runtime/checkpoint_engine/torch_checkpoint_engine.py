@@ -7,7 +7,7 @@ import torch
 from deepspeed.utils import logger, log_dist
 from deepspeed.runtime.checkpoint_engine.checkpoint_engine import \
     CheckpointEngine
-
+import time
 
 class TorchCheckpointEngine(CheckpointEngine):
 
@@ -19,8 +19,9 @@ class TorchCheckpointEngine(CheckpointEngine):
 
     def save(self, state_dict, path: str):
         logger.info(f"[Torch] Saving {path}...")
+        t = time.time()
         torch.save(state_dict, path)
-        logger.info(f"[Torch] Saved {path}.")
+        logger.info(f"[Torch] Saved {path}. in time {time.time()-t}")
         return None
 
     def load(self, path: str, map_location=None):
