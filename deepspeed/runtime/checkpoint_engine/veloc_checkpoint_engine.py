@@ -64,7 +64,7 @@ class VELOCCheckpointEngine(CheckpointEngine):
     @instrument_w_nvtx
     def save(self, state_dict, path: str):
         try:
-            # import pdb; pdb.set_trace()
+            import pdb; pdb.set_trace()
             t = time.time()
             self.ckpt_engine.ckpt(dict(state_dict), path)
             logger.info(f"[VELOC] Added to background checkpointing {path} in {time.time()-t}")

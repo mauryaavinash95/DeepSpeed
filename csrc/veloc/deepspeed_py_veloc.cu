@@ -52,6 +52,8 @@ c10::IValue convert_numpy_to_tensor(const py::handle& input) {
 
 c10::IValue veloc_ckpt_t::convert_to_ivalue(const py::handle& input) {
     try {
+        std::cout << "Got input type as " << py::str(input.get_type()) << std::endl;
+        std::cout << "Value is set as " << input << std::endl;
         if (py::isinstance<py::none>(input)) 
             return c10::IValue();
         if (py::isinstance<py::str>(input))
@@ -86,6 +88,7 @@ c10::IValue veloc_ckpt_t::convert_to_ivalue(const py::handle& input) {
             c10::impl::GenericDict ivalue_dict(c10::StringType::get(), c10::AnyType::get());
             for (const auto& item : py_dict) {
                 py::str key = py::str(item.first);
+                std::cout << "Got dict key as " << key << " of type " << py::str(item.second.get_type()) << std::endl;
                 ivalue_dict.insert(key, convert_to_ivalue(item.second));
             }
             return c10::IValue(ivalue_dict);
@@ -125,15 +128,20 @@ void veloc_ckpt_t::_d2h_trf() {
             std::unique_lock<std::mutex> _lock_d2h(_mutex_d2h);
             while(_pending_d2h.empty() && is_active)
                 _cv_d2h.wait(_lock_d2h);
+            std::cout << "Got out of wait in _d2h_trf thread" << std::endl;
             if (!is_active)
                 return;
             auto e = _pending_d2h.front();
+            std::cout << "Got element in _d2h_trf thread: " << e.first << std::endl;
+            std::cout << "Got value in _d2h_thread as: " << e.second << std::endl;
             _lock_d2h.unlock();
             _cv_d2h.notify_all();
 
             std::string path = e.first;
             py::dict &m = e.second;
+            std::cout << "Going to convert to ivalue dict" << std::endl;
             c10::IValue ivalue_dict = convert_to_ivalue(m);
+            std::cout << "Got converted to ivalue" << std::endl;
 
             std::unique_lock<std::mutex> _lock_h2f(_mutex_h2f);
             _pending_h2f.push_back(std::make_pair(path, &ivalue_dict));
@@ -154,26 +162,32 @@ void veloc_ckpt_t::_d2h_trf() {
 
 void veloc_ckpt_t::_h2f_trf() {
     while (is_active) {
-        // _lock_h2f.lock();
-        std::unique_lock<std::mutex> _lock_h2f(_mutex_h2f);
-        while(_pending_h2f.empty() && is_active)
-            _cv_h2f.wait(_lock_h2f);
-        if (!is_active)
-            return;
-        auto e = _pending_h2f.front();
-        _lock_h2f.unlock();
-        _cv_h2f.notify_all();
+            try {
+            // _lock_h2f.lock();
+            std::unique_lock<std::mutex> _lock_h2f(_mutex_h2f);
+            while(_pending_h2f.empty() && is_active)
+                _cv_h2f.wait(_lock_h2f);
+            if (!is_active)
+                return;
+            auto e = _pending_h2f.front();
+            _lock_h2f.unlock();
+            _cv_h2f.notify_all();
 
-        std::string path = e.first;
-        c10::IValue *m = e.second;
-        torch::serialize::OutputArchive output_archive;
-        output_archive.write("data", &m);
-        output_archive.save_to(path);
+            std::string path = e.first;
+            c10::IValue *m = e.second;
+            torch::serialize::OutputArchive output_archive;
+            output_archive.write("data", &m);
+            output_archive.save_to(path);
 
-        _lock_h2f.lock();
-        _pending_h2f.pop_front();
-        _lock_h2f.unlock();
-        _cv_h2f.notify_all();
+            _lock_h2f.lock();
+            _pending_h2f.pop_front();
+            _lock_h2f.unlock();
+            _cv_h2f.notify_all();
+        } catch (...) {
+            std::cerr << "Unknown exception caught in h2f trf." << std::endl;
+            throw std::runtime_error("Unknown exception");
+            std::abort();
+        }
     }
 }
 
@@ -184,6 +198,27 @@ void veloc_ckpt_t::ckpt(py::dict &m, std::string path) {
     // torch::serialize::OutputArchive output_archive;
     // output_archive.write("data", ivalue_dict);
     // output_archive.save_to(path);
+    try {
+        std::cout << "Got in ckpt fn for " << path << std::endl;
+        std::unique_lock<std::mutex> _lock_d2h(_mutex_d2h);
+        std::cout << "Got lock for " << path << std::endl;
+        while (!_pending_d2h.empty())
+            _cv_d2h.wait(_lock_d2h);
+        _pending_d2h.push_back(std::make_pair(path, m));
+        std::cout << "Pushed in queue for " << path << std::endl;
+        _lock_d2h.unlock();
+        _cv_d2h.notify_all();
+        std::cout << "Saving started in CPP for " << path << std::endl;
+        return;
+    } catch (...) {
+        std::cerr << "Unknown exception caught in ckpt." << path << std::endl;
+        throw std::runtime_error("Unknown exception");
+        std::abort();
+    }
+
+}
+
+void veloc_ckpt_t::ckpt(const long gpu_id, const long ptr_id, size_t size, std::string path) {
     try {
         std::cout << "Got in ckpt fn for " << path << std::endl;
         std::unique_lock<std::mutex> _lock_d2h(_mutex_d2h);
