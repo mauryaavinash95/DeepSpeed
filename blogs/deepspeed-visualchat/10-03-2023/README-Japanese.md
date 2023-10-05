@@ -86,7 +86,6 @@ MMCAの2つ目のポイントは、1つのモダリティに対するアテン�
 
 <div align="center">
   <img src="../assets/images/lake-chat.png" alt="Beautiful lake" width="600"/>
-
   *図4：DeepSpeed-VisualChatは、示された場面を美しい湖として正確に識別し、妥当な提案のセットを提示する。対照的に、ベースラインは画像を「ボート乗り場のあるドック」と誤認識している。*
 </div>
 
@@ -103,7 +102,6 @@ LLaVAモデルで使用されているllavaとllava_dialデータセット、お
 
 <div align="center">
   <img src="../assets/images/data-blending.png" alt="Friends" width="600"/>
-
   *図5: LLaVA-Otterデータブレンド後のデータサンプル。灰色のダイアログボックスはLLaVAデータセットから、オレンジ色のダイアログボックスはOtterデータセットからのもの*
 </div>
 
@@ -112,21 +110,18 @@ LLaVAモデルで使用されているllavaとllava_dialデータセット、お
 
 <div align="center">
   <img src="../assets/images/friends.png" alt="Friends" width="600"/>
-
   *図6: DeepSpeed-VisualChatは、画像内の人数を数え、最初の画像のテキストを読み取ることができます。また、複数画像を横断的に理解することも可能です。*
 </div>
 
 
 <div align="center">
   <img src="../assets/images/ceos.png" alt="CEO" width="600"/>
-
   *図7: DeepSpeed-VisualChatは有名人を認識し、その人物の業績と関連付けることができます*
 </div>
 
 
 <div align="center">
   <img src="../assets/images/zootopia.png" alt="Zootopia" width="600"/>
-
   *図8: DeepSpeed-VisualChatは、ストーリーを作ったり、映画を認識したりできます。*
 </div>
 
