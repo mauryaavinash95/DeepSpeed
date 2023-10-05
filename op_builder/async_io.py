@@ -5,6 +5,7 @@
 
 import distutils.spawn
 import subprocess
+import torch
 
 from .builder import OpBuilder
 
