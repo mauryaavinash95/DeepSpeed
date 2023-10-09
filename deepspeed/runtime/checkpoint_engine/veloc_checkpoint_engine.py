@@ -14,8 +14,12 @@ from collections import OrderedDict
 import time
 from deepspeed.ops.op_builder import VelocCkptBuilder
 import sys
-
+import pickle
+import numpy as np
+import ctypes
 from deepspeed.runtime.swap_tensor.constants import *
+
+SIZE_UINT64 = np.array(0, dtype=np.uint64).nbytes
 
 class VELOCCheckpointEngine(CheckpointEngine):
 
@@ -32,7 +36,8 @@ class VELOCCheckpointEngine(CheckpointEngine):
         h2l_lock = Lock()
         self.d2h_cond = Condition(lock=d2h_lock)
         self.h2l_cond = Condition(lock=h2l_lock)
-        self.ckpt_engine = VelocCkptBuilder().load().veloc_ckpt_handle(config_params["veloc_config"]["host_cache"] << 30)
+        # import pdb; pdb.set_trace();
+        self.ckpt_engine = VelocCkptBuilder().load().veloc_ckpt_handle(int(config_params["veloc_config"]["host_cache"] << 30), int(torch.cuda.current_device()))
         # aio_op = AsyncIOBuilder().load()
         # aio_config = config_params["aio_config"]
         # self.aio_handle = aio_op.aio_handle(aio_config[AIO_BLOCK_SIZE], aio_config[AIO_QUEUE_DEPTH], aio_config[AIO_SINGLE_SUBMIT], aio_config[AIO_OVERLAP_EVENTS], aio_config[AIO_THREAD_COUNT])
@@ -41,23 +46,31 @@ class VELOCCheckpointEngine(CheckpointEngine):
         log_dist(f"[VELOC] Checkpoint {tag} is about to be saved!", ranks=[0])
 
     @instrument_w_nvtx
-    def _to_cpu(self, ele, snapshot):
+    def _parse_dict(self, ele, snapshot, async_copies_list):
         try:
-            torch.cuda.stream(self.d2h_stream)
-            if torch.is_tensor(ele) and ele.device.type == 'cuda':
-                snapshot = ele.cpu()
-            elif isinstance(ele, dict) and not isinstance(ele, OrderedDict):
+            if isinstance(ele, np.ndarray):
+                data_device = -1
+                snapshot = f"{len(async_copies_list)}-pickled"
+                # Storing in async_copies_list values: data_ptr, size_in_bytes, device_id, file_offset
+                async_copies_list.append([ele.ctypes.data, ele.nbytes, -1, 0])
+            elif torch.is_tensor(ele) or isinstance(ele, np.ndarray):
+                data_device = ele.device.type if ele.device.type == 'cuda' else -1
+                snapshot = f"{len(async_copies_list)}-pickled"
+                async_copies_list.append([ele.data_ptr(), ele.numel()*ele.element_size(), data_device, 0])
+            # elif isinstance(ele, dict) and not isinstance(ele, OrderedDict):
+            elif isinstance(ele, dict):
                 snapshot = {}
                 for (k, v) in ele.items():
                     snapshot[k] = None
-                    snapshot[k] = self._to_cpu(v, snapshot[k])
+                    snapshot[k], async_copies_list = self._parse_dict(v, snapshot[k], async_copies_list)
             elif isinstance(ele, list):
                 snapshot = [None for _ in range(len(ele))]
                 for (idx, v) in enumerate(ele):
-                    snapshot[idx] = self._to_cpu(v, snapshot[idx])
+                    snapshot[idx], async_copies_list = self._parse_dict(v, snapshot[idx], async_copies_list)
             else:
+                log_dist(f"[VELOC] Got in parse dict of type {type(ele)}: {ele}")
                 snapshot = ele
-            return snapshot
+            return snapshot, async_copies_list
         except Exception as exc:
             logger.info(f"[VELOC] From _to_cpu, generated exception: {exc}")
 
@@ -65,9 +78,36 @@ class VELOCCheckpointEngine(CheckpointEngine):
     def save(self, state_dict, path: str):
         try:
             import pdb; pdb.set_trace()
-            t = time.time()
-            self.ckpt_engine.ckpt(dict(state_dict), path)
-            logger.info(f"[VELOC] Added to background checkpointing {path} in {time.time()-t}")
+            start_time = time.time()
+            new_state_dict = {}
+            async_copies_list = []
+            new_state_dict, async_copies_list = self._parse_dict(state_dict, new_state_dict, async_copies_list)
+            serialized_dict = pickle.dumps(new_state_dict, protocol=pickle.HIGHEST_PROTOCOL)
+            
+            headers = np.zeros((len(async_copies_list)+1, 2), dtype=np.uint64) #[(ctypes.c_uint64(0), ctypes.c_uint64(0))]*(len(async_copies_list)+1)
+            header_size = pickle.dumps(headers, protocol=pickle.HIGHEST_PROTOCOL)
+            
+            file_offset = SIZE_UINT64        # Count the number of bytes require to write header_size in bytes
+            file_offset += len(header_size)                     # Add the serialized header_size
+            
+            headers[0] = (file_offset, file_offset+len(serialized_dict))
+            file_offset += len(serialized_dict)                 # Add offset for writing the serial-dict
+            
+            # self.ckpt_engine.ckpt_header_size(0, ctypes.sizeof(ctypes.c_uint64), header_size, path) # Write size of header list
+            self.ckpt_engine.ckpt_header_size(0, SIZE_UINT64, len(headers), path) # Write size of header list
+            # After this we should be writing headers, but we do not have file offsets yet.
+            self.ckpt_engine.ckpt_pickle(headers[0][0], headers[0][1], serialized_dict, path)  # Start writing the serialized_dict
+            
+            for i, t in enumerate(async_copies_list):
+                t[3] = file_offset      # v[3] represents the file_write_offset
+                file_offset += t[1]     # v[1] represents the size of the object
+                headers[i+1] = ((t[3], file_offset))
+                self.ckpt_engine.ckpt_obj(headers[i+1][0], headers[i+1][1], t[0], t[1], t[2], t[3], path)
+                
+            headers = pickle.dumps(headers, protocol=pickle.HIGHEST_PROTOCOL)
+            self.ckpt_engine.ckpt_pickle(SIZE_UINT64, SIZE_UINT64+len(header_size), headers, path)
+            # self.ckpt_engine.ckpt(dict(state_dict), path)
+            logger.info(f"[VELOC] Added to background checkpointing {path} in {time.time()-start_time}")
             return None
         except Exception as exc:
             logger.info(f"[VELOC] From save, generated exception: {exc}")

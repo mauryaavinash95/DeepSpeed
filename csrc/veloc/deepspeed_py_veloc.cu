@@ -1,55 +1,5 @@
 #include <deepspeed_py_veloc.h>
 
-// void veloc_ckpt_t::ckpt(py::dict &m, std::string path) {
-//     c10::impl::GenericDict generic_dict(c10::StringType::get(), m.begin()->second.type());
-//     for (const auto& entry : m) {
-//         generic_dict.insert(entry.first, entry.second);
-//     }
-//     torch::serialize::OutputArchive output_archive;
-//     output_archive.write("data", generic_dict);
-//     output_archive.save_to(path);
-//     std::cout << "Saving complete from CPP size for " << path << std::endl;
-//     return;
-// }
-
-// Helper function to convert Python objects to c10::IValue
-// at::IValue convert_to_ivalue(const py::handle &obj) {
-//     if (py::isinstance<py::float_>(obj)) {
-//         return at::IValue(py::cast<float>(obj));
-//     } else if (py::isinstance<py::int_>(obj)) {
-//         return at::IValue(py::cast<int>(obj));
-//     } else if (py::isinstance<py::list>(obj)) {
-//         py::list py_list = py::cast<py::list>(obj);
-//         std::vector<at::IValue> ivalue_list;
-//         for (const auto &item : py_list) {
-//             ivalue_list.push_back(convert_to_ivalue(item));
-//         }
-//         return at::IValue(ivalue_list);
-//     } else if (py::isinstance<py::dict>(obj)) {
-//         py::dict py_dict = py::cast<py::dict>(obj);
-//         // c10::Dict<at::IValue, at::IValue> ivalue_dict;
-//         c10::impl::GenericDict ivalue_dict(c10::StringType::get(), c10::IValue::type());
-//         for (const auto &item : py_dict) {
-//             ivalue_dict.insert(convert_to_ivalue(item.first), convert_to_ivalue(item.second));
-//         }
-//         return at::IValue(ivalue_dict);
-//     }
-//     // Handle other types as needed
-//     throw std::runtime_error("Unsupported Python type");
-// }
-
-template <typename T>
-c10::IValue convert_numpy_to_tensor(const py::handle& input) {
-    if (py::isinstance<py::array_t<T>>(input)) {
-        py::array_t<T> numpy_array = py::cast<py::array_t<T>>(input);
-        auto numpy_array_info = numpy_array.request(); // Get array info
-        // at::Tensor tensor = torch::from_blob(numpy_array_info.ptr, {numpy_array_info.size}, at::CppTypeToScalarType<T>::to());
-        at::Tensor tensor = torch::from_blob(numpy_array_info.ptr, {numpy_array_info.size});
-        return c10::IValue(tensor);
-    }
-    throw std::runtime_error("Input is not a NumPy array of the specified type.");
-}
-
 c10::IValue veloc_ckpt_t::convert_to_ivalue(const py::handle& input) {
     try {
         std::cout << "Got input type as " << py::str(input.get_type()) << std::endl;
@@ -123,28 +73,30 @@ c10::IValue veloc_ckpt_t::convert_to_ivalue(const py::handle& input) {
 
 
 void veloc_ckpt_t::_d2h_trf() {
+    checkCuda(cudaSetDevice(_gpu_id));
     while (is_active) {
         try {
             std::unique_lock<std::mutex> _lock_d2h(_mutex_d2h);
+            // _lock_d2h.lock();
             while(_pending_d2h.empty() && is_active)
                 _cv_d2h.wait(_lock_d2h);
-            std::cout << "Got out of wait in _d2h_trf thread" << std::endl;
+            // std::cout << "Got out of wait in _d2h_trf thread" << std::endl;
             if (!is_active)
                 return;
             auto e = _pending_d2h.front();
-            std::cout << "Got element in _d2h_trf thread: " << e.first << std::endl;
-            std::cout << "Got value in _d2h_thread as: " << e.second << std::endl;
             _lock_d2h.unlock();
             _cv_d2h.notify_all();
 
-            std::string path = e.first;
-            py::dict &m = e.second;
-            std::cout << "Going to convert to ivalue dict" << std::endl;
-            c10::IValue ivalue_dict = convert_to_ivalue(m);
-            std::cout << "Got converted to ivalue" << std::endl;
+            std::string path = std::get<0>(e);
+            const void *const ptr = std::get<1>(e);
+            size_t size = std::get<2>(e);
+            size_t file_offset = std::get<3>(e);
+            checkCuda(cudaMemcpyAsync(_start_ptr, ptr, size, cudaMemcpyDeviceToHost, _cpy_stream));
+            std::cout << "Moved to the host" << path << std::endl;
 
             std::unique_lock<std::mutex> _lock_h2f(_mutex_h2f);
-            _pending_h2f.push_back(std::make_pair(path, &ivalue_dict));
+            // _lock_h2f.lock();
+            _pending_h2f.push_back(std::make_tuple(path, _start_ptr, size, file_offset));
             _lock_h2f.unlock();
             _cv_h2f.notify_all();
 
@@ -152,6 +104,7 @@ void veloc_ckpt_t::_d2h_trf() {
             _pending_d2h.pop_front();
             _lock_d2h.unlock();
             _cv_d2h.notify_all();
+            // std::cout << "Popped from the d2h_queue" << std::endl;
         } catch (...) {
             std::cerr << "Unknown exception caught in d2h trf." << std::endl;
             throw std::runtime_error("Unknown exception");
@@ -161,9 +114,9 @@ void veloc_ckpt_t::_d2h_trf() {
 }
 
 void veloc_ckpt_t::_h2f_trf() {
+    checkCuda(cudaSetDevice(_gpu_id));
     while (is_active) {
             try {
-            // _lock_h2f.lock();
             std::unique_lock<std::mutex> _lock_h2f(_mutex_h2f);
             while(_pending_h2f.empty() && is_active)
                 _cv_h2f.wait(_lock_h2f);
@@ -173,16 +126,34 @@ void veloc_ckpt_t::_h2f_trf() {
             _lock_h2f.unlock();
             _cv_h2f.notify_all();
 
-            std::string path = e.first;
-            c10::IValue *m = e.second;
-            torch::serialize::OutputArchive output_archive;
-            output_archive.write("data", &m);
-            output_archive.save_to(path);
-
+            std::string path = std::get<0>(e);
+            const void* const ptr = std::get<1>(e);
+            size_t size = std::get<2>(e);
+            size_t file_offset = std::get<3>(e);
+            std::ofstream f;
+            try {
+                f.exceptions(std::ofstream::failbit | std::ofstream::badbit);
+                f.open(path,  std::ofstream::out | std::ofstream::binary | std::ofstream::app);
+                f.seekp(file_offset);
+            } catch (std::exception &e) {
+                std::cerr << "Problem occurs in opening or seeking the file " << std::endl;
+                std::abort();
+            }
+            try {
+                f.write((const char*)ptr, size);
+            } catch (std::exception &e) {
+                std::cerr << "Problem occurs in writing to the file " << " of size " << size << " at offset " << file_offset << " in file " 
+                    << path << " pointer is " << (void *)ptr << std::endl;
+                std::abort();
+            }
+            f.close();
             _lock_h2f.lock();
             _pending_h2f.pop_front();
             _lock_h2f.unlock();
             _cv_h2f.notify_all();
+        }  catch (std::exception &e) {
+            std::cerr << "Exception caught in h2f trf." << e.what() << std::endl;
+            std::abort();
         } catch (...) {
             std::cerr << "Unknown exception caught in h2f trf." << std::endl;
             throw std::runtime_error("Unknown exception");
@@ -191,52 +162,98 @@ void veloc_ckpt_t::_h2f_trf() {
     }
 }
 
+// void veloc_ckpt_t::ckpt(const long ptr_id, size_t size, std::string path) {
+//     try {
+//         std::cout << "Got in ckpt fn for " << path << std::endl;
+//         std::unique_lock<std::mutex> _lock_d2h(_mutex_d2h);
+//         // std::cout << "Got lock for " << path << std::endl;
+//         const void* const ptr = reinterpret_cast<const void* const>(ptr_id);
+//         while (!_pending_d2h.empty())
+//             _cv_d2h.wait(_lock_d2h);
+//         _pending_d2h.push_back(std::make_tuple(path, ptr, size));
+//         // std::cout << "Pushed in queue for " << path << std::endl;
+//         _lock_d2h.unlock();
+//         _cv_d2h.notify_all();
+//         std::cout << "Saving started in CPP for " << path << std::endl;
+//         return;
+//     } catch (...) {
+//         std::cerr << "Unknown exception caught in ckpt." << path << std::endl;
+//         throw std::runtime_error("Unknown exception");
+//         std::abort();
+//     }
 
+// }
 
-void veloc_ckpt_t::ckpt(py::dict &m, std::string path) {
-    // c10::IValue ivalue_dict = convert_to_ivalue(m);
-    // torch::serialize::OutputArchive output_archive;
-    // output_archive.write("data", ivalue_dict);
-    // output_archive.save_to(path);
+void veloc_ckpt_t::ckpt_header_size(const std::uint64_t start_offset, const std::uint64_t end_offset, const std::uint64_t value, std::string path) {
     try {
-        std::cout << "Got in ckpt fn for " << path << std::endl;
-        std::unique_lock<std::mutex> _lock_d2h(_mutex_d2h);
-        std::cout << "Got lock for " << path << std::endl;
-        while (!_pending_d2h.empty())
-            _cv_d2h.wait(_lock_d2h);
-        _pending_d2h.push_back(std::make_pair(path, m));
-        std::cout << "Pushed in queue for " << path << std::endl;
-        _lock_d2h.unlock();
-        _cv_d2h.notify_all();
-        std::cout << "Saving started in CPP for " << path << std::endl;
-        return;
+        std::ofstream f;
+        f.exceptions(std::ofstream::failbit | std::ofstream::badbit);
+        f.open(path,  std::ofstream::out | std::ofstream::binary | std::ofstream::app);
+        f.seekp(start_offset);
+        f.write((const char*)&value, end_offset-start_offset);
+        f.close();
+    } catch (std::exception &e) {
+        std::cerr << "Exception caught in ckpt_header_size." << e.what() << std::endl;
+        std::abort();
     } catch (...) {
-        std::cerr << "Unknown exception caught in ckpt." << path << std::endl;
+        std::cerr << "Unknown exception caught in ckpt_header_size." << path << std::endl;
         throw std::runtime_error("Unknown exception");
         std::abort();
     }
-
 }
 
-void veloc_ckpt_t::ckpt(const long gpu_id, const long ptr_id, size_t size, std::string path) {
+void veloc_ckpt_t::ckpt_pickle(const std::uint64_t start_offset, const std::uint64_t end_offset, py::bytes value, std::string path) {
     try {
-        std::cout << "Got in ckpt fn for " << path << std::endl;
-        std::unique_lock<std::mutex> _lock_d2h(_mutex_d2h);
-        std::cout << "Got lock for " << path << std::endl;
-        while (!_pending_d2h.empty())
-            _cv_d2h.wait(_lock_d2h);
-        _pending_d2h.push_back(std::make_pair(path, m));
-        std::cout << "Pushed in queue for " << path << std::endl;
-        _lock_d2h.unlock();
-        _cv_d2h.notify_all();
-        std::cout << "Saving started in CPP for " << path << std::endl;
+        const char* data = PyBytes_AsString(value.ptr());
+        size_t size = PyBytes_Size(value.ptr());
+        assert((size == end_offset-start_offset) && "Size of pickled object is not correct");
+        std::ofstream f;
+        f.exceptions(std::ofstream::failbit | std::ofstream::badbit);
+        f.open(path,  std::ofstream::out | std::ofstream::binary | std::ofstream::app);
+        f.seekp(start_offset);
+        f.write((const char*)data, size);
+        f.close();
+    } catch (std::exception &e) {
+        std::cerr << "Exception caught in ckpt_pickle." << e.what() << std::endl;
+        std::abort();
+    } catch (...) {
+        std::cerr << "Unknown exception caught in ckpt_pickle." << path << std::endl;
+        throw std::runtime_error("Unknown exception");
+        std::abort();
+    }
+}
+
+void veloc_ckpt_t::ckpt_obj(const std::uint64_t start_offset, const std::uint64_t end_offset, const std::uint64_t ptr_id, const std::uint64_t size, const int device_id, const std::uint64_t file_offset, std::string path) {
+    try {
+        const void* const ptr = reinterpret_cast<const void* const>(ptr_id);
+        cudaPointerAttributes attr;
+        checkCuda(cudaPointerGetAttributes(&attr, (const void *)ptr));
+        if (attr.type == cudaMemoryTypeDevice)
+            assert((attr.type == cudaMemoryTypeDevice && device_id > -1 && device_id == _gpu_id) && "Device pointer problem in ckpt_obj");
+        if (attr.type == cudaMemoryTypeDevice && device_id > -1) {
+            std::unique_lock<std::mutex> _lock_d2h(_mutex_d2h);
+            while (!_pending_d2h.empty())
+                _cv_d2h.wait(_lock_d2h);
+            _pending_d2h.push_back(std::make_tuple(path, ptr, size, file_offset));
+            _lock_d2h.unlock();
+            _cv_d2h.notify_all();
+            std::cout << "Saving started for GPU data structure in CPP for " << path << std::endl;
+            return;
+        } 
+        std::unique_lock<std::mutex> _lock_h2f(_mutex_h2f);
+        _pending_h2f.push_back(std::make_tuple(path, ptr, size, file_offset));
+        _lock_h2f.unlock();
+        _cv_h2f.notify_all();
+        std::cout << "Saving started for host data structure in CPP for " << path << std::endl;
         return;
+    } catch (std::exception &e) {
+        std::cerr << "Exception caught in ckpt_pickle." << e.what() << std::endl;
+        std::abort();
     } catch (...) {
         std::cerr << "Unknown exception caught in ckpt." << path << std::endl;
         throw std::runtime_error("Unknown exception");
         std::abort();
     }
-
 }
 
 void veloc_ckpt_t::wait() {
