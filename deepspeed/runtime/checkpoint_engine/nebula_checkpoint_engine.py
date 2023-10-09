@@ -105,3 +105,10 @@ class NebulaCheckpointEngine(CheckpointEngine):
             logger.error(f"[Nebula] failed to commit the checkpoint, please check the log.")
             return False
         return commit_rls
+
+
+    def wait(self, prev_version):
+        return True
+    
+    def shutdown(self):
+        return True

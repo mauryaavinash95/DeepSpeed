@@ -11,7 +11,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
         .def("ckpt_header_size", &veloc_ckpt_t::ckpt_header_size)
         .def("ckpt_pickle", &veloc_ckpt_t::ckpt_pickle)
         .def("ckpt_obj", &veloc_ckpt_t::ckpt_obj)
-        .def("wait", &veloc_ckpt_t::wait);
+        .def("ckpt_tensor", &veloc_ckpt_t::ckpt_tensor)
+        .def("wait", &veloc_ckpt_t::wait)
+        .def("shutdown", &veloc_ckpt_t::shutdown);
         // .def("ckpt", py::overload_cast<uint64_t, uint64_t, uint64_t, std::string>(&veloc_ckpt_t::ckpt_header_size), "Write the header size")
         // .def("ckpt", py::overload_cast<uint64_t, uint64_t, py::bytes, std::string>(&veloc_ckpt_t::ckpt_pickle), "Write the pickled object")
         // .def("ckpt", py::overload_cast<uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, std::string>(&veloc_ckpt_t::ckpt_obj), "Write the referenced object")

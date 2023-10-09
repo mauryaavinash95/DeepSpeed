@@ -28,3 +28,9 @@ class CheckpointEngine(object):
     def commit(self, tag):
         # to tell checkpoint services if all files are ready.
         pass
+
+    def wait(self, prev_version):
+        pass
+    
+    def shutdown(self):
+        pass

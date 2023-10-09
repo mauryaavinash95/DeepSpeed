@@ -37,30 +37,26 @@ inline void checkCudaFunc(cudaError_t code, const char *file, int line, bool abo
 }
 
 class veloc_ckpt_t {
-    void *_start_ptr;
+    char*_start_ptr;
     size_t _curr_offset = 0;
     size_t _total_host_cache = 0;
     
-    // std::deque<std::pair<std::string, void *>> _pending_d2h;
-    std::deque<std::tuple<std::string, const void * const, size_t, size_t>> _pending_d2h;
+    std::deque<std::tuple<int, std::string, torch::Tensor, size_t, size_t>> _pending_d2h;
     std::mutex _mutex_d2h;
     std::condition_variable _cv_d2h;
     // std::unique_lock<std::mutex> _lock_d2h;
     std::thread _thread_d2h;
 
-    // std::deque<std::pair<std::string, c10::IValue*>> _pending_h2f;
-    std::deque<std::tuple<std::string, const void * const, size_t, size_t>> _pending_h2f;
+    std::deque<std::tuple<int, std::string, torch::Tensor, size_t, size_t>> _pending_h2f;
+    // std::deque<std::tuple<int, std::string, char*, size_t, size_t>> _pending_h2f_obj;
     std::mutex _mutex_h2f;
     std::condition_variable _cv_h2f;
     // std::unique_lock<std::mutex> _lock_h2f;
     std::thread _thread_h2f;
 
     bool is_active = true;
-    // py::object argparse_module = py::module::import("argparse");
-    // py::object torch_module = py::module::import("torch");
-    py::object argparse_module, torch_module;
     int _gpu_id = 0;
-    cudaStream_t _cpy_stream;
+    cudaStream_t _cpy_stream;    
 
     public:
     veloc_ckpt_t(size_t host_cache, int g) {
@@ -80,8 +76,6 @@ class veloc_ckpt_t {
             // _lock_d2h.unlock();
             // _lock_h2f.unlock();
             is_active = true;
-            argparse_module = py::module::import("argparse");
-            torch_module = py::module::import("torch");
             _thread_d2h = std::thread([&] { _d2h_trf(); });
             _thread_h2f = std::thread([&] { _h2f_trf(); });
             std::cout << "Inited veloc_ckpt_t" << std::endl;
@@ -95,12 +89,15 @@ class veloc_ckpt_t {
         }
     }
 
-    c10::IValue convert_to_ivalue(const py::handle &obj);
-    void ckpt_header_size(const std::uint64_t start_offset, const std::uint64_t end_offset, const std::uint64_t value, std::string path);
-    void ckpt_pickle(const std::uint64_t start_offset, const std::uint64_t end_offset, py::bytes value, std::string path);
-    void ckpt_obj(const std::uint64_t start_offset, const std::uint64_t end_offset, const std::uint64_t ptr, const std::uint64_t size, const int device_id, const std::uint64_t file_offset, std::string path);
-    void wait();
+    // void begin_ckpt_version(int version);
+    void ckpt_header_size(int version, const std::uint64_t start_offset, const std::uint64_t end_offset, const std::uint64_t value, std::string path);
+    void ckpt_pickle(int version, const std::uint64_t start_offset, const std::uint64_t end_offset, py::bytes value, std::string path);
+    void ckpt_obj(int version, const std::uint64_t start_offset, const std::uint64_t end_offset, const std::uint64_t ptr, const std::uint64_t size, const int device_id, const std::uint64_t file_offset, std::string path);
+    void ckpt_tensor(int version, const std::uint64_t start_offset, const std::uint64_t end_offset, const torch::Tensor &t, 
+        const std::uint64_t size, const int device_id, const std::uint64_t file_offset, std::string path);
+    // void end_ckpt_version(int version);
+    void wait(int version = -1);
     void _d2h_trf();
     void _h2f_trf();
-
+    void shutdown();
 };
