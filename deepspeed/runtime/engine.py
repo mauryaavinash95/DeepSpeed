@@ -914,7 +914,9 @@ class DeepSpeedEngine(Module):
         if self._config is not None and self._config.veloc_config:
             from deepspeed.runtime.checkpoint_engine.veloc_checkpoint_engine import \
                     VELOCCheckpointEngine
-            import pdb; pdb.set_trace()
+            # if (rank == 0):
+            #     import pdb; pdb.set_trace()
+            # dist.barrier()
             self.checkpoint_engine = VELOCCheckpointEngine(self._config.veloc_config)
             # self.checkpoint_engine = TorchCheckpointEngine()
         # only the first data parallel process needs to store the model checkpoint
