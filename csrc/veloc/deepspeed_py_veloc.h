@@ -1,3 +1,6 @@
+#ifndef __DEEPSPEED_PY_VELOC_HPP
+#define __DEEPSPEED_PY_VELOC_HPP
+
 #include <stdlib.h>
 #include <deque>
 #include <mutex>
@@ -18,75 +21,55 @@
 #include <torch/extension.h>
 #include <torch/script.h>
 #include <pybind11/stl.h>
-// #include "pybind11/numpy.h"
 #include <thread>
 #include <tuple>
 #include <iostream>
 #include <cstdint>
 #include <fstream>
+#include <chrono>
+#include "memory_cache.hpp"
 
 namespace py = pybind11;
 
-#define checkCuda(ans) { checkCudaFunc((ans), __FILE__, __LINE__); }
-inline void checkCudaFunc(cudaError_t code, const char *file, int line, bool abort=true) {
-   if (code != cudaSuccess) {
-      fprintf(stderr,"========= GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-      if (abort) exit(code);
-   }
-}
 
-class veloc_ckpt_t {
-    char*_start_ptr;
-    size_t _curr_offset = 0;
-    size_t _total_host_cache = 0;
-    
-    std::deque<std::tuple<int, std::string, torch::Tensor, size_t, size_t>> _pending_d2h;
+
+class veloc_ckpt_t {    
+    // Tuple contains: <version, unique_region_id, path, tensor, size, file_offset>
+    std::deque<std::tuple<int, uint64_t, std::string, torch::Tensor, size_t, size_t>> _pending_d2h;
     std::mutex _mutex_d2h;
     std::condition_variable _cv_d2h;
-    // std::unique_lock<std::mutex> _lock_d2h;
     std::thread _thread_d2h;
 
-    std::deque<std::tuple<int, std::string, torch::Tensor, size_t, size_t>> _pending_h2f;
-    // std::deque<std::tuple<int, std::string, char*, size_t, size_t>> _pending_h2f_obj;
+    std::deque<std::tuple<int, uint64_t, std::string, torch::Tensor, size_t, size_t>> _pending_h2f;
     std::mutex _mutex_h2f;
     std::condition_variable _cv_h2f;
-    // std::unique_lock<std::mutex> _lock_h2f;
     std::thread _thread_h2f;
 
     bool is_active = true;
     int _gpu_id = 0;
     cudaStream_t _cpy_stream;    
-
+    memory_cache_t *mem;
+    std::stringstream s_stream;
+    
     public:
     veloc_ckpt_t(size_t host_cache, int g) {
-    // veloc_ckpt_t(size_t host_cache, int g) {
         try {
-            std::cout << "Initing veloc_ckpt_t" << std::endl;
-            // _lock_d2h(_mutex_d2h, std::defer_lock);
-            // _lock_h2f(_mutex_h2f, std::defer_lock);
             _gpu_id = g;
             checkCuda(cudaSetDevice(_gpu_id));
-            _total_host_cache = host_cache;
-            checkCuda(cudaMallocHost(&_start_ptr, _total_host_cache));
             checkCuda(cudaStreamCreate(&_cpy_stream));
-            _curr_offset = 0;
-            _pending_d2h.clear();
-            _pending_h2f.clear();
-            // _lock_d2h.unlock();
-            // _lock_h2f.unlock();
             is_active = true;
             _thread_d2h = std::thread([&] { _d2h_trf(); });
             _thread_h2f = std::thread([&] { _h2f_trf(); });
-            std::cout << "Inited veloc_ckpt_t" << std::endl;
+            mem = new memory_cache_t(_gpu_id, host_cache);
+            _pending_d2h.clear();
+            _pending_h2f.clear();
+            DBG("Inited veloc_ckpt_t on GPU ID " << g << " for host cache size of (MB) " << (host_cache >> 20));
         } catch(std::exception& e) {
-            std::cerr << "Standard exception caught in veloc init: " << e.what() << std::endl;
-            std::abort();
+            FATAL("Standard exception caught in veloc init: " << e.what());
         } catch (...) {
-            std::cerr << "Unknown exception caught in veloc init." << std::endl;
-            throw std::runtime_error("Unknown exception");
-            std::abort();
+            FATAL("Unknown exception caught in veloc init.");
         }
-    }
+    };
 
     // void begin_ckpt_version(int version);
     void ckpt_header_size(int version, const std::uint64_t start_offset, const std::uint64_t end_offset, const std::uint64_t value, std::string path);
@@ -100,3 +83,5 @@ class veloc_ckpt_t {
     void _h2f_trf();
     void shutdown();
 };
+
+#endif // __DEEPSPEED_PY_VELOC_HPP

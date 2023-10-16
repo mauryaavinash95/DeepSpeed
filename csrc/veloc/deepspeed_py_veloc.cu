@@ -5,29 +5,37 @@ void veloc_ckpt_t::_d2h_trf() {
     while (is_active) {
         try {
             std::unique_lock<std::mutex> _lock_d2h(_mutex_d2h);
-            // _lock_d2h.lock();
             while(_pending_d2h.empty() && is_active)
                 _cv_d2h.wait(_lock_d2h);
-            // std::cout << "Got out of wait in _d2h_trf thread" << std::endl;
             if (!is_active)
                 return;
+            TIMER_START(d2h_time);
             auto e = _pending_d2h.front();
             _lock_d2h.unlock();
             _cv_d2h.notify_all();
 
             int version = std::get<0>(e);
-            std::string path = std::get<1>(e);
-            // const void *const ptr = std::get<1>(e);
-            torch::Tensor t = std::get<2>(e);
-            size_t size = std::get<3>(e);
-            size_t file_offset = std::get<4>(e);
-            torch::Tensor cpu_tensor = t.to(torch::kCPU);
-            // checkCuda(cudaMemcpyAsync(_start_ptr, ptr, size, cudaMemcpyDeviceToHost, _cpy_stream));
-            // std::cout << "Moved to the host" << path << std::endl;
-
+            uint64_t uid = std::get<1>(e);
+            std::string path = std::get<2>(e);
+            torch::Tensor t = std::get<3>(e);
+            size_t size = std::get<4>(e);
+            size_t file_offset = std::get<5>(e);
+            mem_region_t* m = mem->allocate(size);
+            char *ptr = m->ptr;
+            TIMER_STOP(d2h_time, "[D2H] Allocation time for " << m->uid << " version " << version, size);
+            TIMER_START(memcpy_time);
+            checkCuda(cudaMemcpyAsync(ptr, t.data_ptr(), size, cudaMemcpyDeviceToHost, _cpy_stream));
+            checkCuda(cudaStreamSynchronize(_cpy_stream));
+            TIMER_STOP(memcpy_time, "[D2H] D2H Memcpy time for " << m->uid << " version " << version, size);
+            
+            TIMER_START(blob_time);
+            torch::Tensor cpu_tensor = torch::from_blob(ptr, t.sizes(), t.dtype());
+            if ((void *)ptr != (void *)(cpu_tensor.data_ptr())) {
+                FATAL("In d2h trf offsets don't match for " << m->uid << " version " << version);
+            }
+            TIMER_STOP(blob_time, "[D2H] Time to convert from blob to tensor for " << m->uid << " version " << version, size);
             std::unique_lock<std::mutex> _lock_h2f(_mutex_h2f);
-            // _lock_h2f.lock();
-            _pending_h2f.push_back(std::make_tuple(version, path, cpu_tensor, size, file_offset));
+            _pending_h2f.push_back(std::make_tuple(version, m->uid, path, cpu_tensor, size, file_offset));
             _lock_h2f.unlock();
             _cv_h2f.notify_all();
 
@@ -35,14 +43,11 @@ void veloc_ckpt_t::_d2h_trf() {
             _pending_d2h.pop_front();
             _lock_d2h.unlock();
             _cv_d2h.notify_all();
-            // std::cout << "Popped from the d2h_queue" << std::endl;
+            TIMER_STOP(d2h_time, "[D2H] Total time for GPU to process " << m->uid << " version " << version, size);
         } catch (std::exception &e) {
-            std::cerr << "Exception caught in d2h trf." << e.what() << std::endl;
-            std::abort();
+            FATAL("Exception caught in d2h trf." << e.what());
         } catch (...) {
-            std::cerr << "Unknown exception caught in d2h trf." << std::endl;
-            throw std::runtime_error("Unknown exception");
-            std::abort();
+            FATAL("Unknown exception caught in d2h trf.");
         }
     }
 }
@@ -56,44 +61,55 @@ void veloc_ckpt_t::_h2f_trf() {
                 _cv_h2f.wait(_lock_h2f);
             if (!is_active)
                 return;
+            TIMER_START(h2f_time);
             auto e = _pending_h2f.front();
             _lock_h2f.unlock();
             _cv_h2f.notify_all();
-
+            
             int version = std::get<0>(e);
-            std::string path = std::get<1>(e);
-            torch::Tensor t = std::get<2>(e);
-            size_t size = std::get<3>(e);
-            size_t file_offset = std::get<4>(e);
+            uint64_t uid = std::get<1>(e);
+            std::string path = std::get<2>(e);
+            torch::Tensor t = std::get<3>(e);
+            size_t size = std::get<4>(e);
+            size_t file_offset = std::get<5>(e);
+            
             std::ofstream f;            
             f.exceptions(std::ofstream::failbit | std::ofstream::badbit);
             f.open(path,  std::ofstream::out | std::ofstream::binary | std::ofstream::app);
             f.seekp(file_offset);
-            auto pickled = torch::pickle_save(t);
-            f.write((char*)pickled.data(), size);
+            TIMER_START(f_write_time);
+            f.write(static_cast<char *>(t.data_ptr()), (t.numel()*t.element_size()));
             f.close();
+            TIMER_STOP(f_write_time, "[H2F] Time to write file for " << uid << " version " << version, size);
+            // TIMER_STOP(h2f_time, "[H2F] Time to open file for " << uid << " version " << version, size);
+            // TIMER_START(tensor_save);
+            // s_stream.seekp(0);
+            // torch::save(t, s_stream);
+            // TIMER_STOP(tensor_save, "[H2F] Time to save as tensor " << uid << " version " << version, size);
+            // TIMER_START(file_save)
+            // f << s_stream.str();
+            // f.close();
+            // TIMER_STOP(file_save, "[H2F] Time from sstring to file " << uid << " version " << version, size);
+            // TIMER_START(tensor_dir_save);
+            // torch::save(t, std::string("/local/scratch/file-")+std::to_string(uid));
+            // TIMER_STOP(tensor_dir_save, "[H2F] Time to direct save " << uid << " version " << version, size);
+            
             _lock_h2f.lock();
+            mem->deallocate(uid, size);
             _pending_h2f.pop_front();
             _lock_h2f.unlock();
             _cv_h2f.notify_all();
+            TIMER_STOP(h2f_time, "[H2F] Total time in h2f to save tensor " << uid << " version " << version, size);
         }  catch (std::exception &e) {
-            std::cerr << "Exception caught in h2f trf." << e.what() << std::endl;
-            std::abort();
+            FATAL("Exception caught in h2f trf." << e.what());
         } catch (...) {
-            std::cerr << "Unknown exception caught in h2f trf." << std::endl;
-            throw std::runtime_error("Unknown exception");
-            std::abort();
+            FATAL("Unknown exception caught in h2f trf.");
         }
     }
 }
 
 void veloc_ckpt_t::ckpt_header_size(int version, const std::uint64_t start_offset, const std::uint64_t end_offset, const std::uint64_t value, std::string path) {
     try {
-        // std::unique_lock<std::mutex> _lock_h2f(_mutex_h2f);
-        // _pending_h2f.push_back(std::make_tuple(path, (char *)&value, end_offset-start_offset, start_offset));
-        // _lock_h2f.unlock();
-        // _cv_h2f.notify_all();
-
         std::ofstream f;
         f.exceptions(std::ofstream::failbit | std::ofstream::badbit);
         f.open(path,  std::ofstream::out | std::ofstream::binary | std::ofstream::app);
@@ -101,12 +117,9 @@ void veloc_ckpt_t::ckpt_header_size(int version, const std::uint64_t start_offse
         f.write((const char*)&value, end_offset-start_offset);
         f.close();
     } catch (std::exception &e) {
-        std::cerr << "Exception caught in ckpt_header_size." << e.what() << std::endl;
-        std::abort();
+        FATAL("Exception caught in ckpt_header_size." << e.what());
     } catch (...) {
-        std::cerr << "Unknown exception caught in ckpt_header_size." << path << std::endl;
-        throw std::runtime_error("Unknown exception");
-        std::abort();
+        FATAL("Unknown exception caught in ckpt_header_size." << path);
     }
 }
 
@@ -115,11 +128,6 @@ void veloc_ckpt_t::ckpt_pickle(int version, const std::uint64_t start_offset, co
         char* ptr = PyBytes_AsString(value.ptr());
         size_t size = PyBytes_Size(value.ptr());
         assert((size == end_offset-start_offset) && "Size of pickled object is not correct");
-        // std::unique_lock<std::mutex> _lock_h2f(_mutex_h2f);
-        // _pending_h2f.push_back(std::make_tuple(path, ptr, size, start_offset));
-        // _lock_h2f.unlock();
-        // _cv_h2f.notify_all();
-
         std::ofstream f;
         f.exceptions(std::ofstream::failbit | std::ofstream::badbit);
         f.open(path,  std::ofstream::out | std::ofstream::binary | std::ofstream::app);
@@ -127,12 +135,9 @@ void veloc_ckpt_t::ckpt_pickle(int version, const std::uint64_t start_offset, co
         f.write((const char*)ptr, size);
         f.close();
     } catch (std::exception &e) {
-        std::cerr << "Exception caught in ckpt_pickle." << e.what() << std::endl;
-        std::abort();
+        FATAL("Exception caught in ckpt_pickle." << e.what());
     } catch (...) {
-        std::cerr << "Unknown exception caught in ckpt_pickle." << path << std::endl;
-        throw std::runtime_error("Unknown exception");
-        std::abort();
+        FATAL("Unknown exception caught in ckpt_pickle." << path);
     }
 }
 
@@ -144,34 +149,14 @@ void veloc_ckpt_t::ckpt_obj(int version, const std::uint64_t start_offset, const
         if (attr.type == cudaMemoryTypeDevice)
             assert((attr.type == cudaMemoryTypeDevice && device_id > -1 && device_id == _gpu_id) && "Device pointer problem in ckpt_obj");
         if (attr.type == cudaMemoryTypeDevice && device_id > -1) {
-            std::unique_lock<std::mutex> _lock_d2h(_mutex_d2h);
-            while (!_pending_d2h.empty())
-                _cv_d2h.wait(_lock_d2h);
-            // _pending_d2h.push_back(std::make_tuple(path, ptr, size, file_offset));
-            _lock_d2h.unlock();
-            _cv_d2h.notify_all();
-            std::cout << "Saving started for GPU data structure in CPP for " << path << std::endl;
             throw std::runtime_error("Do not know how to checkpoint device objects");
             return;
-        } 
-        std::unique_lock<std::mutex> _lock_h2f(_mutex_h2f);
-        // _pending_h2f.push_back(std::make_tuple(path, ptr, size, file_offset));
-        _lock_h2f.unlock();
-        _cv_h2f.notify_all();
-
-        // _lock_h2f.lock();
-        // while(!_pending_h2f.empty())
-        //     _cv_h2f.wait(_lock_h2f);
-
-        std::cout << "Saving started for host data structure in CPP for " << path << " of size " << size << std::endl;
-        return;
+        }
+        throw std::runtime_error("Do not know how to checkpoint device objects");
     } catch (std::exception &e) {
-        std::cerr << "Exception caught in ckpt_pickle." << e.what() << std::endl;
-        std::abort();
+        FATAL("Exception caught in ckpt_pickle." << e.what());
     } catch (...) {
-        std::cerr << "Unknown exception caught in ckpt." << path << std::endl;
-        throw std::runtime_error("Unknown exception");
-        std::abort();
+        FATAL("Unknown exception caught in ckpt." << path);
     }
 }
 
@@ -182,51 +167,63 @@ void veloc_ckpt_t::ckpt_tensor(int version, const std::uint64_t start_offset, co
             assert((t.device().index() == _gpu_id) && "Tensor not on the same GPU as ckpt engine");
         if (t.device().is_cuda()) {
             std::unique_lock<std::mutex> _lock_d2h(_mutex_d2h);
-            while (!_pending_d2h.empty())
-                _cv_d2h.wait(_lock_d2h);
-            _pending_d2h.push_back(std::make_tuple(version, path, t, size, file_offset));
+            _pending_d2h.push_back(std::make_tuple(version, 0, path, t, size, file_offset));
             _lock_d2h.unlock();
             _cv_d2h.notify_all();
-            // std::cout << "Saving started for GPU data structure in CPP for " << path << std::endl;
             return;
         } 
         std::unique_lock<std::mutex> _lock_h2f(_mutex_h2f);
-        _pending_h2f.push_back(std::make_tuple(version, path, t, size, file_offset));
+        _pending_h2f.push_back(std::make_tuple(version, 0, path, t, size, file_offset));
         _lock_h2f.unlock();
         _cv_h2f.notify_all();
-        // _lock_h2f.lock();
-        // while(!_pending_h2f.empty())
-        //     _cv_h2f.wait(_lock_h2f);
-        // std::cout << "Saving started for host data structure in CPP for " << path << " of size " << size << std::endl;
         return;
     } catch (std::exception &e) {
-        std::cerr << "Exception caught in ckpt_pickle." << e.what() << std::endl;
-        std::abort();
+        FATAL("Exception caught in ckpt_tensor." << e.what());
     } catch (...) {
-        std::cerr << "Unknown exception caught in ckpt." << path << std::endl;
-        throw std::runtime_error("Unknown exception");
-        std::abort();
+        FATAL("Unknown exception caught in ckpt_tensor." << path);
     }
 }
 
 void veloc_ckpt_t::wait(int version) {
     // _lock_d2h.lock();
     std::unique_lock<std::mutex> _lock_d2h(_mutex_d2h);
-    while (!_pending_d2h.empty())
+    while (!_pending_d2h.empty()) {
+        DBG("Waiting in d2h for " << _pending_d2h.size());
+        for(auto e: _pending_d2h) {
+            DBG(std::get<0>(e) << " UID " << std::get<1>(e) << " size " << std::get<4>(e));
+        }
         _cv_d2h.wait(_lock_d2h);
+    }
     _lock_d2h.unlock();
     _cv_d2h.notify_all();
 
-    std::unique_lock<std::mutex> _lock_h2f(_mutex_d2h);
-    while (!_pending_h2f.empty())
-        _cv_h2f.wait(_lock_h2f);
-    _lock_h2f.unlock();
-    _cv_h2f.notify_all();
-    std::cout << "Wait complete" << std::endl;
+    // std::unique_lock<std::mutex> _lock_h2f(_mutex_d2h);
+    // while (!_pending_h2f.empty()) {
+    //     DBG("Waiting in d2h for " << _pending_h2f.size());
+    //     for(auto e: _pending_h2f) {
+    //         DBG(std::get<0>(e) << " UID " << std::get<1>(e) << " size " << std::get<4>(e));
+    //     }
+    //     _cv_h2f.wait(_lock_h2f);
+    // }
+    // _lock_h2f.unlock();
+    // _cv_h2f.notify_all();
+    DBG("Wait complete");
 }
 
 void veloc_ckpt_t::shutdown() {
     wait();
+
+    // Wait for D2H transfers
+    std::unique_lock<std::mutex> _lock_h2f(_mutex_d2h);
+    while (!_pending_h2f.empty()) {
+        DBG("Waiting in d2h for " << _pending_h2f.size());
+        for(auto e: _pending_h2f) {
+            DBG(std::get<0>(e) << " UID " << std::get<1>(e) << " size " << std::get<4>(e));
+        }
+        _cv_h2f.wait(_lock_h2f);
+    }
+    _lock_h2f.unlock();
+    _cv_h2f.notify_all();
     is_active = false;
     _cv_h2f.notify_all();
     _cv_d2h.notify_all();

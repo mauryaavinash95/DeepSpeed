@@ -17,9 +17,24 @@ import sys
 import pickle
 import numpy as np
 import ctypes
+import io
 from deepspeed.runtime.swap_tensor.constants import *
 
 SIZE_UINT64 = np.array(0, dtype=np.uint64).nbytes
+ASYNC_CKPT_SIZE_MIN = 1<<27
+class RedirectStdout:
+    def __init__(self):
+        self._stdout = sys.stdout
+        sys.stdout = self
+
+    def write(self, text):
+        # Forward text to Python's print
+        self._stdout.write(text)
+
+    def flush(self):
+        pass  # This is necessary to prevent the AttributeError
+
+redirect = RedirectStdout()
 
 class VELOCCheckpointEngine(CheckpointEngine):
 
@@ -37,17 +52,16 @@ class VELOCCheckpointEngine(CheckpointEngine):
     @instrument_w_nvtx
     def _parse_dict(self, ele, snapshot, async_copies_list):
         try:
-            if isinstance(ele, np.ndarray):
+            if isinstance(ele, np.ndarray): # and ele.nbytes > ASYNC_CKPT_SIZE_MIN:
+                print("Got a numpy array")
+                import pdb; pdb.set_trace();
                 data_device = -1
-                snapshot = f"{len(async_copies_list)}-pickled"
+                snapshot = f"{len(async_copies_list)}-pickled-numpy"
                 # Storing in async_copies_list values: data_ptr, size_in_bytes, device_id, file_offset
                 async_copies_list.append([ele.ctypes.data, ele.nbytes, -1, 0])
-            elif torch.is_tensor(ele):
+            elif torch.is_tensor(ele) and (ele.numel()*ele.element_size() > ASYNC_CKPT_SIZE_MIN):
                 data_device = ele.device.index if ele.device.type == 'cuda' else -1
-                snapshot = f"{len(async_copies_list)}-pickled"
-                if not ele.is_contiguous():
-                    print(f"ERROR: Not contiguous")
-                    import pdb; pdb.set_trace()
+                snapshot = f"{len(async_copies_list)}-pickled-tensor"
                 async_copies_list.append([ele, ele.numel()*ele.element_size(), data_device, 0])
             # elif isinstance(ele, dict) and not isinstance(ele, OrderedDict):
             elif isinstance(ele, dict):
@@ -69,18 +83,17 @@ class VELOCCheckpointEngine(CheckpointEngine):
     @instrument_w_nvtx
     def save(self, state_dict, path: str):
         try:
-            # import pdb; pdb.set_trace()
             start_time = time.time()
             version = int(path.split("/")[-2].replace('global_step', ''))
-            
             new_state_dict = {}
             async_copies_list = []
             new_state_dict, async_copies_list = self._parse_dict(state_dict, new_state_dict, async_copies_list)
             serialized_dict = pickle.dumps(new_state_dict, protocol=pickle.HIGHEST_PROTOCOL)
             
+            t_begin = time.time()
             headers = np.zeros((len(async_copies_list)+1, 2), dtype=np.uint64) #[(ctypes.c_uint64(0), ctypes.c_uint64(0))]*(len(async_copies_list)+1)
             header_size = pickle.dumps(headers, protocol=pickle.HIGHEST_PROTOCOL)
-            
+
             file_offset = SIZE_UINT64        # Count the number of bytes require to write header_size in bytes
             file_offset += len(header_size)                     # Add the serialized header_size
             
@@ -100,11 +113,11 @@ class VELOCCheckpointEngine(CheckpointEngine):
                     self.ckpt_engine.ckpt_tensor(version, headers[i+1][0], headers[i+1][1], t[0], t[1], t[2], t[3], path)
                 else:
                     self.ckpt_engine.ckpt_obj(version, headers[i+1][0], headers[i+1][1], t[0], t[1], t[2], t[3], path)
-                
+            
             headers = pickle.dumps(headers, protocol=pickle.HIGHEST_PROTOCOL)
             self.ckpt_engine.ckpt_pickle(version, SIZE_UINT64, SIZE_UINT64+len(header_size), headers, path)
-            # self.ckpt_engine.ckpt(dict(state_dict), path)
-            logger.info(f"[VELOC] Added to background checkpointing {path} in {time.time()-start_time}")
+            sys.stdout = redirect._stdout
+            logger.info(f"[VELOC] Version {version} in {time.time()-start_time}, path {path}")
             return None
         except Exception as exc:
             logger.info(f"[VELOC] From save, generated exception: {exc}")

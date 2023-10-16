@@ -20,7 +20,7 @@ class VelocCkptBuilder(CUDAOpBuilder):
         return f'deepspeed.ops.veloc.{self.NAME}_op'
 
     def sources(self):
-        return ['csrc/veloc/py_ds_veloc.cpp', 'csrc/veloc/deepspeed_py_veloc.cu']
+        return ['csrc/veloc/memory_cache.cpp', 'csrc/veloc/py_ds_veloc.cpp', 'csrc/veloc/deepspeed_py_veloc.cu']
 
     def include_paths(self):
         return ['csrc/veloc', 'csrc/includes']

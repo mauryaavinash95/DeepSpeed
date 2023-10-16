@@ -102,6 +102,7 @@ from deepspeed.utils.logging import print_json_dist, print_configuration
 from deepspeed.accelerator import get_accelerator
 
 from deepspeed.runtime.config import DtypeEnum
+import time
 
 MEMORY_OPT_ALLREDUCE_SIZE = 500000000
 
@@ -914,11 +915,12 @@ class DeepSpeedEngine(Module):
         if self._config is not None and self._config.veloc_config:
             from deepspeed.runtime.checkpoint_engine.veloc_checkpoint_engine import \
                     VELOCCheckpointEngine
-            # if (rank == 0):
-            #     import pdb; pdb.set_trace()
-            # dist.barrier()
             self.checkpoint_engine = VELOCCheckpointEngine(self._config.veloc_config)
-            # self.checkpoint_engine = TorchCheckpointEngine()
+
+        if self._config is not None and self._config.async_ckpt_config:
+            from deepspeed.runtime.checkpoint_engine.async_checkpoint_engine import AsyncCheckpointEngine
+            self.checkpoint_engine = AsyncCheckpointEngine()
+
         # only the first data parallel process needs to store the model checkpoint
         # if you want to use node local storage this must be done by rank 0 on each
         # node
@@ -2976,6 +2978,10 @@ class DeepSpeedEngine(Module):
             elif not valid:
                 logger.warning(msg)
 
+    def save_checkpoint_terminate(self):
+        print("===================== Terminating now ============== ")
+        self.checkpoint_engine.shutdown()
+
     def save_checkpoint(self, save_dir, tag=None, client_state={}, save_latest=True, exclude_frozen_parameters=False):
         """Save training checkpoint
 
@@ -2992,6 +2998,7 @@ class DeepSpeedEngine(Module):
         process with rank 0.
 
         """
+        t = time.time()
         if self._optimizer_has_ckpt_event_prologue():
             # Custom preparation for checkpoint save, if applicable
             self.optimizer.checkpoint_event_prologue()
@@ -3040,14 +3047,15 @@ class DeepSpeedEngine(Module):
 
         if self._optimizer_has_ckpt_event_epilogue():
             self.optimizer.checkpoint_event_epilogue()
-
+        logger.info(f"Save checkpoint (engine.py) before commit {time.time()-t} for {tag}")
         # Save latest checkpoint tag
         self.checkpoint_engine.commit(tag)
         if save_latest and rank == 0:
             with open(os.path.join(save_dir, 'latest'), 'w') as fd:
                 fd.write(tag)
-
+        logger.info(f"Save checkpoint (engine.py) completed in {time.time()-t} for {tag}")
         dist.barrier()
+        logger.info(f"Save checkpoint (engine.py) out of barrier in {time.time()-t} for {tag}")
 
         return True
 
@@ -3379,10 +3387,11 @@ class DeepSpeedEngine(Module):
             )
 
     def _save_zero_checkpoint(self, save_path, tag):
+        t = time.time()
         zero_checkpoint_name = self._get_zero_ckpt_name(save_path, tag)
         zero_sd = dict(optimizer_state_dict=self.optimizer.state_dict(), ds_config=self.config, ds_version=version)
         self.checkpoint_engine.save(zero_sd, zero_checkpoint_name)
-
+        logger.info(f'Time to save zero checkpoint {time.time()-t}, path {zero_checkpoint_name}')
         if self.global_rank == 0:
             self._copy_recovery_script(save_path)
         ckpt_type = 'zero' if self.zero_optimization() else 'bf16_zero'

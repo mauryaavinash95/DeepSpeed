@@ -1,0 +1,84 @@
+#ifndef __MEMORY_CACHE_HPP
+#define __MEMORY_CACHE_HPP
+
+#include <iostream>
+#include <vector>
+#include <mutex>
+#include <condition_variable>
+#include <cuda_runtime.h>
+#include <deque>
+#include <cassert>
+#include <cstdlib>
+#include <chrono>
+#include <fstream>  
+#include <cstdint>
+#include <cmath>
+
+#define checkCuda(ans) { checkCudaFunc((ans), __FILE__, __LINE__); }
+inline void checkCudaFunc(cudaError_t code, const char *file, int line, bool abort=true) {
+   if (code != cudaSuccess) {
+      fprintf(stderr,"========= GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
+
+
+static auto beginning = std::chrono::steady_clock::now();
+#define TIMER_START(timer) auto timer = std::chrono::steady_clock::now();
+#define TIMER_STOP(timer, message, size) {\
+    auto now = std::chrono::steady_clock::now();\
+    auto d = std::chrono::duration_cast<std::chrono::nanoseconds>(now - timer).count(); \
+    auto t = std::chrono::duration_cast<std::chrono::seconds>(now - beginning).count();\
+    std::cout << "[BENCHMARK " << t << "] [" << __FILE__ << ":" << __LINE__ << ":" \
+        << __FUNCTION__ << "] [time elapsed: " << d << " ns] " << message \
+        << " [THRU: " << (double)((double)size/(double)d) << "]" << std::endl; \
+}
+
+#define MESSAGE(level, message) \
+    std::cout << "[" << level << " " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - beginning).count() << "] [" \
+        << __FILE__ << ":" << __LINE__ << ":" << __FUNCTION__ << "] " << message << std::endl
+
+#define DBG(message) MESSAGE("DEBUG", message)
+
+#define FATAL(message) {\
+    MESSAGE("FATAL", message);\
+    std::abort(); \
+}
+
+struct mem_region_t {
+    uint64_t uid;
+    char *ptr;
+    size_t start_offset;
+    size_t end_offset;
+    mem_region_t(uint64_t u, char *p, size_t s, size_t e): uid(u), ptr(p), start_offset(s), end_offset(e) {};
+};
+static volatile uint64_t local_uid = 1;
+class memory_cache_t {
+    int _device_id;
+    size_t _total_memory;
+    size_t _curr_size;
+    size_t _head;
+    size_t _tail;
+    char* _start_ptr;
+
+    std::mutex _mem_mutex;
+    std::condition_variable _mem_cv;
+    std::deque<mem_region_t*> _mem_q;
+public:
+    memory_cache_t(int d, size_t t);
+
+    ~memory_cache_t();
+
+    mem_region_t* _assign(size_t h, size_t s);
+
+    mem_region_t* allocate(size_t s);
+
+    void deallocate(uint64_t _uid, size_t s);
+
+    size_t size();
+
+    void _print_trace();
+};
+
+
+#endif

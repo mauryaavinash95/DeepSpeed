@@ -887,6 +887,12 @@ class DeepSpeedConfig(object):
         else:
             self.veloc_config = None
 
+        if "async_ckpt_config" in param_dict.keys():
+            self.async_ckpt_config = copy.deepcopy(param_dict["async_ckpt_config"])
+            self.async_ckpt_config["enabled"] = True
+        else:
+            self.async_ckpt_config = None
+
         self.weight_quantization_config = WeightQuantConfig(
             **param_dict['weight_quantization']) if 'weight_quantization' in param_dict else None
 
