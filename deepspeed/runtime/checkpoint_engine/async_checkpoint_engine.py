@@ -63,7 +63,8 @@ class AsyncCheckpointEngine(CheckpointEngine):
         logger.info(f"[AsyncTorch] Saving {path}...")
         t = time.time()
         while self.checkpoint_in_progress:
-            self.in_progress_cv.wait()
+            with self.in_progress_cv:
+                self.in_progress_cv.wait()
         logger.info(f"[AsyncTorch] Prev completion waiting time {time.time()-t} for incoming {path}...")
         new_state_dict = {}
         new_state_dict = self._to_cpu(state_dict, new_state_dict)

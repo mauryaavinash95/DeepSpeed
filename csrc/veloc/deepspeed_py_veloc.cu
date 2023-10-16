@@ -207,16 +207,16 @@ void veloc_ckpt_t::wait(int version) {
     // }
     // _lock_h2f.unlock();
     // _cv_h2f.notify_all();
-    DBG("Wait complete");
+    DBG("Wait D2H complete");
 }
 
 void veloc_ckpt_t::shutdown() {
     wait();
 
     // Wait for D2H transfers
-    std::unique_lock<std::mutex> _lock_h2f(_mutex_d2h);
+    std::unique_lock<std::mutex> _lock_h2f(_mutex_h2f);
     while (!_pending_h2f.empty()) {
-        DBG("Waiting in d2h for " << _pending_h2f.size());
+        DBG("Waiting in h2f for " << _pending_h2f.size());
         for(auto e: _pending_h2f) {
             DBG(std::get<0>(e) << " UID " << std::get<1>(e) << " size " << std::get<4>(e));
         }
@@ -229,5 +229,6 @@ void veloc_ckpt_t::shutdown() {
     _cv_d2h.notify_all();
     _thread_d2h.join();
     _thread_h2f.join();
+
     return;
 }
