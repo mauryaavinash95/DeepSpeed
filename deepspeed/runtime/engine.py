@@ -3062,8 +3062,8 @@ class DeepSpeedEngine(Module):
         # There seems to be issue creating them in parallel
 
         # Ensure save_dir directory exists
-        self.checkpoint_engine.makedirs(save_dir, exist_ok=True)
-        print("Starting to checkpoint on rank ", rank)
+        if rank == 0:
+            self.checkpoint_engine.makedirs(save_dir, exist_ok=True)
         dist.barrier()
         print("All ranks after first dist.barrier() rank ", rank)
 
