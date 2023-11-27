@@ -71,10 +71,24 @@ void veloc_ckpt_t::_d2h_trf() {
             DBG("[D2H][" << _rank << "] transfer of tensor " << uid  << " version " << version << " delta " << get_current_ts()-enqueued_time << " enqueued at " << enqueued_time << " completed at " << get_current_ts());
         } catch (std::exception &e) {
             FATAL("Exception caught in d2h trf." << e.what());
+            // DBG("==== Returning from d2h_trf");
         } catch (...) {
             FATAL("Unknown exception caught in d2h trf.");
+            // DBG("==== Returning from d2h_trf");
         }
     }
+}
+
+void veloc_ckpt_t::_write_file(char * ptr, std::string path, size_t startIdx, size_t endIdx, size_t file_offset, std::uint64_t uid, int version, int threadID) {
+    std::ofstream f;            
+    f.exceptions(std::ofstream::failbit | std::ofstream::badbit);
+    f.open(path,  std::ofstream::out | std::ofstream::binary | std::ofstream::app);
+    f.seekp(file_offset+startIdx);
+    // TIMER_START(f_write_time);
+    // f.write(static_cast<char *>(t.data_ptr()), (t.numel()*t.element_size()));
+    f.write(ptr+startIdx, endIdx-startIdx);
+    f.close();
+    // TIMER_STOP(f_write_time, "[H2F] Time to write file for " << uid << " version " << version << " using thread " << threadID, endIdx-startIdx);
 }
 
 void veloc_ckpt_t::_h2f_trf() {
@@ -164,8 +178,10 @@ void veloc_ckpt_t::_h2f_trf() {
             DBG("[H2F][" << _rank << "] flush for tensor uid " << uid  << " version " << version << " delta " << get_current_ts()-enqueued_time << " enqueued at " << enqueued_time << " completed at " << get_current_ts());
         }  catch (std::exception &e) {
             FATAL("Exception caught in h2f trf." << e.what());
+            // DBG("==== Returning from h2f_trf");
         } catch (...) {
             FATAL("Unknown exception caught in h2f trf.");
+            // DBG("==== Returning from h2f_trf");
         }
     }
 }

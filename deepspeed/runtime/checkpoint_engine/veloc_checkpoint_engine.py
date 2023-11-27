@@ -102,6 +102,9 @@ class VELOCCheckpointEngine(CheckpointEngine):
             version = int(path.split("/")[-2].replace('global_step', ''))
             new_state_dict = {}
             async_copies_list = []
+            t_begin = time.time()
+            # if (self.rank == 0):
+            #     import pdb; pdb.set_trace();
             new_state_dict, async_copies_list = self._parse_dict(state_dict, new_state_dict, async_copies_list)
             serialized_dict = pickle.dumps(new_state_dict, protocol=pickle.HIGHEST_PROTOCOL)
             headers = np.zeros((len(async_copies_list)+1, 2), dtype=np.uint64) #[(ctypes.c_uint64(0), ctypes.c_uint64(0))]*(len(async_copies_list)+1)
@@ -112,7 +115,6 @@ class VELOCCheckpointEngine(CheckpointEngine):
             
             headers[0] = (file_offset, file_offset+len(serialized_dict))
             file_offset += len(serialized_dict)                 # Add offset for writing the serial-dict
-
             for i, t in enumerate(async_copies_list):
                 t[3] = file_offset  
                 file_offset += t[1] 

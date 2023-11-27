@@ -45,6 +45,12 @@ class veloc_ckpt_t {
     std::condition_variable _cv_h2f;
     std::thread _thread_h2f;
 
+
+    std::deque<std::tuple<int, uint64_t, std::string, char *, size_t, size_t>> _pending_p2f;
+    std::mutex _mutex_p2f;
+    std::condition_variable _cv_p2f;
+    std::thread _thread_p2f;
+
     bool is_active = true;
     int _gpu_id = 0;
     cudaStream_t _cpy_stream;    
@@ -55,6 +61,7 @@ class veloc_ckpt_t {
     public:
     veloc_ckpt_t(size_t host_cache, int g, int _writer_threads = 1, int rank=-1) {
         try {
+            DBG("Got on GPU " << g << " host cache size of " << host_cache << " with writer threads " << _writer_threads);
             _gpu_id = g;
             _rank = rank;
             writer_threads = _writer_threads;
@@ -85,6 +92,8 @@ class veloc_ckpt_t {
     void wait(int version = -1);
     void _d2h_trf();
     void _h2f_trf();
+    void _p2f_trf();
+    void _write_file(char * ptr, std::string path, size_t startIdx, size_t endIdx, size_t file_offset, std::uint64_t uid, int version, int threadID);
     void shutdown();
 };
 
