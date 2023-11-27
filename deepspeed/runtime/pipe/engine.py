@@ -8,7 +8,7 @@ from types import MethodType
 import torch
 from deepspeed import comm as dist
 
-from deepspeed.utils import logger
+from deepspeed.utils import logger, timeit
 from deepspeed.utils.timer import ThroughputTimer
 from deepspeed.accelerator import get_accelerator
 
@@ -26,6 +26,7 @@ from ..activation_checkpointing import checkpointing as ds_checkpointing
 from .module import PipelineModule, PipelineError
 from . import p2p
 from . import schedule
+import time
 
 TARGET_ID = -2
 LOG_STAGE = -2
@@ -233,6 +234,7 @@ class PipelineEngine(DeepSpeedEngine):
         assert isinstance(value, bool)
         self.has_attention_mask = value
 
+    @timeit
     def _build_data_iter(self, dataset):
         sampler = torch.utils.data.distributed.DistributedSampler(dataset,
                                                                   num_replicas=self.dp_world_size,
@@ -242,7 +244,8 @@ class PipelineEngine(DeepSpeedEngine):
         pipe_dataloader = self.deepspeed_io(dataset, data_sampler=sampler)
         pipe_dataloader = RepeatingLoader(pipe_dataloader)
         self.set_dataloader(pipe_dataloader)
-
+    
+    @timeit
     def _exec_reduce_tied_grads(self):
         # We need to run this first to write to self.averaged_gradients;
         # since this class turns `enable_backward_allreduce` off,
@@ -260,6 +263,7 @@ class PipelineEngine(DeepSpeedEngine):
             grad = weight._hp_grad if self.bfloat16_enabled() else weight.grad
             dist.all_reduce(grad, group=group)
 
+    @timeit
     def _exec_reduce_grads(self):
         self._force_grad_boundary = True
         if self.pipeline_enable_backward_allreduce:
@@ -270,12 +274,14 @@ class PipelineEngine(DeepSpeedEngine):
                 self.allreduce_gradients(bucket_size=MEMORY_OPT_ALLREDUCE_SIZE)
         self._force_grad_boundary = False
 
+    @timeit
     def _bf16_reduce_grads(self):
         # Make our own list of gradients from the optimizer's FP32 grads
         grads = []
         self.buffered_allreduce_fallback(grads=self.optimizer.get_grads_for_reduction(),
                                          elements_per_buffer=MEMORY_OPT_ALLREDUCE_SIZE)
 
+    @timeit
     def _reserve_pipe_buffers(self, num_buffers):
         """Ensure that each pipeline buffer has at least ``num_buffers`` slots.
 
@@ -292,6 +298,7 @@ class PipelineEngine(DeepSpeedEngine):
             self.pipe_buffers[key].extend([None] * num_added)
         self.num_pipe_buffers = num_buffers
 
+    @timeit
     def reset_activation_shape(self):
         """Reset the buffers when the shape of activation and gradient change.
         For example, for curriculum learning that changes the seqlen of each
@@ -302,6 +309,7 @@ class PipelineEngine(DeepSpeedEngine):
         self.grad_layer = None
         self.meta_buffer = None
 
+    @timeit
     def train_batch(self, data_iter=None):
         """Progress the pipeline to train the next batch of data. The engine will ingest
         ``self.train_batch_size()`` total samples collectively across all workers.
@@ -386,6 +394,7 @@ class PipelineEngine(DeepSpeedEngine):
         # TODO: should return precisely what loss returned and allow others to be queried?
         return self.agg_train_loss
 
+    @timeit
     def eval_batch(self, data_iter, return_logits=False, compute_loss=True, reduce_output='avg', bcast_loss=True):
         """Evaluate the pipeline on a batch of data from ``data_iter``. The
         engine will evaluate ``self.train_batch_size()`` total samples
@@ -489,6 +498,7 @@ class PipelineEngine(DeepSpeedEngine):
         """True if this process is in the last stage in the pipeline."""
         return self.stage_id == self.num_stages - 1
 
+    @timeit
     def _reduce_outputs(self, outputs, reduce='avg', reduce_dp=True):
         if reduce is None:
             return outputs
@@ -520,6 +530,7 @@ class PipelineEngine(DeepSpeedEngine):
         else:
             raise NotImplementedError(f'reduction type {reduce} not supported.')
 
+    @timeit
     def _bcast_pipe_scalar(self, data, src_rank=None, dtype=torch.float32):
         # Default to last stage (e.g., for broadcasting loss)
         if src_rank is None:
@@ -535,6 +546,7 @@ class PipelineEngine(DeepSpeedEngine):
 
         return result
 
+    @timeit
     def _aggregate_total_loss(self):
         # Scale loss, average among DP ranks, and bcast loss to the rest of my DP group
         if self.is_last_stage():
@@ -623,6 +635,7 @@ class PipelineEngine(DeepSpeedEngine):
 
         return batch
 
+    @timeit
     def _exec_forward_pass(self, buffer_id):
         self.tput_timer.start()
         self.mem_status('BEFORE FWD', reset_max=True)
@@ -700,6 +713,7 @@ class PipelineEngine(DeepSpeedEngine):
                 for idx, l in enumerate(self.loss):
                     self.total_loss[idx] += l.detach()
 
+    @timeit
     def _exec_backward_pass(self, buffer_id):
         assert self.optimizer is not None, "must provide optimizer during " \
                                            "init in order to use backward"
@@ -774,6 +788,7 @@ class PipelineEngine(DeepSpeedEngine):
 
         self.mem_status('AFTER BWD')
 
+    @timeit
     def _exec_load_micro_batch(self, buffer_id):
         if self.wall_clock_breakdown():
             self.timers(BATCH_INPUT_TIMER).start()
@@ -820,6 +835,7 @@ class PipelineEngine(DeepSpeedEngine):
         if self.wall_clock_breakdown():
             self.timers(BATCH_INPUT_TIMER).stop()
 
+    @timeit
     def _send_tensor_meta(self, buffer, recv_stage):
         """ Communicate metadata about upcoming p2p transfers.
 
@@ -884,6 +900,7 @@ class PipelineEngine(DeepSpeedEngine):
             print(f'STAGE={self.stage_id} pipe-send-volume: {send_bytes/1024**2:0.2f}MB')
         '''
 
+    @timeit
     def _recv_tensor_meta(self, send_stage):
         """Receive metadata about upcoming p2p transfers and return allocated buffers.
 
@@ -938,6 +955,7 @@ class PipelineEngine(DeepSpeedEngine):
         else:
             raise NotImplementedError(f'Could not receive type {type(recv_type)}')
 
+    @timeit
     def _exec_send_activations(self, buffer_id):
         if self.wall_clock_breakdown():
             self.timers(PIPE_SEND_OUTPUT_TIMER).start()
@@ -974,6 +992,7 @@ class PipelineEngine(DeepSpeedEngine):
         if self.wall_clock_breakdown():
             self.timers(PIPE_SEND_OUTPUT_TIMER).stop()
 
+    @timeit
     def _exec_send_grads(self, buffer_id):
         if self.wall_clock_breakdown():
             self.timers(PIPE_SEND_GRAD_TIMER).start()
@@ -1030,6 +1049,7 @@ class PipelineEngine(DeepSpeedEngine):
         if self.wall_clock_breakdown():
             self.timers(PIPE_SEND_GRAD_TIMER).stop()
 
+    @timeit
     def _exec_recv_activations(self, buffer_id):
         if self.wall_clock_breakdown():
             self.timers(PIPE_RECV_INPUT_TIMER).start()
@@ -1073,6 +1093,7 @@ class PipelineEngine(DeepSpeedEngine):
         if self.wall_clock_breakdown():
             self.timers(PIPE_RECV_INPUT_TIMER).stop()
 
+    @timeit
     def _exec_recv_grads(self, buffer_id):
         if self.wall_clock_breakdown():
             self.timers(PIPE_RECV_GRAD_TIMER).start()
@@ -1130,6 +1151,7 @@ class PipelineEngine(DeepSpeedEngine):
         if self.wall_clock_breakdown():
             self.timers(PIPE_RECV_GRAD_TIMER).stop()
 
+    @timeit
     def _exec_optimizer_step(self, lr_kwargs=None):
         if self.wall_clock_breakdown():
             self.timers(STEP_MICRO_TIMER).start()
@@ -1266,6 +1288,7 @@ class PipelineEngine(DeepSpeedEngine):
             f'current alloc={new_alloced:0.4f}GB (delta={delta_alloced:0.4f}GB max={max_alloced:0.4f}GB) '
             f'current cache={new_cached:0.4f}GB (delta={delta_cached:0.4f}GB max={max_cached:0.4f}GB)')
 
+    @timeit
     def module_state_dict(self, exclude_frozen_parameters=False):
         """Override hack to save a pipe model and return the directory path of the save.
 
@@ -1276,6 +1299,7 @@ class PipelineEngine(DeepSpeedEngine):
         Returns:
             None
         """
+        t = time.time()
         assert isinstance(self.module, PipelineModule)
         assert self._curr_ckpt_path is not None, \
             "PipelineEngine expects module_state_dict() to be called from save_checkpoint()"
@@ -1283,8 +1307,11 @@ class PipelineEngine(DeepSpeedEngine):
         self.module.save_state_dict(self._curr_ckpt_path,
                                     checkpoint_engine=self.checkpoint_engine,
                                     exclude_frozen_params=exclude_frozen_parameters)
+        # dist.barrier()
+        logger.info(f"Saving module_state_dict in engine.py pipeline one in time {time.time()-t}")
         return None
 
+    @timeit
     def load_module_state_dict(self, checkpoint, strict=True, custom_load_fn=None, fetch_z3_params=False):
         """Override hack to instead use a directory path.
 
@@ -1321,10 +1348,16 @@ class PipelineEngine(DeepSpeedEngine):
         schedule.RecvGrad: _exec_recv_grads,
     }
 
+    @timeit
     def _exec_schedule(self, pipe_schedule):
         # Reserve and reset buffers.
         self._reserve_pipe_buffers(pipe_schedule.num_pipe_buffers())
         self.fwd_outputs = []
+
+        t = time.time()
+        print(f"[Rank {self.global_rank}] waiting for checkpoint completion")
+        self.checkpoint_engine.wait()
+        print(f"[Rank {self.global_rank}] Time to wait before ckpt completion: {time.time()-t}")
 
         # For each step in the schedule
         for step_cmds in pipe_schedule:
@@ -1332,7 +1365,25 @@ class PipelineEngine(DeepSpeedEngine):
             for cmd in step_cmds:
                 if type(cmd) not in self._INSTRUCTION_MAP:
                     raise RuntimeError(f'{self.__class__.__name__} does not understand instruction {repr(cmd)}')
+                
+                if type(cmd) == schedule.OptimizerStep:
+                    t = time.time()
+                    self.checkpoint_engine.wait()
+                    print(f"[Rank {self.global_rank}] Time to wait before optimizer step: {time.time()-t}")
+                    # print("In before optimizer step")
+                    # if (self.global_rank == 0): 
+                    #     import pdb
+                    #     pdb.set_trace()
+                    # dist.barrier()
 
                 # Equivalent to: self._exec_forward_pass(buffer_id=0)
                 self._exec_instr = MethodType(self._INSTRUCTION_MAP[type(cmd)], self)
                 self._exec_instr(**cmd.kwargs)
+
+
+                # if type(cmd) == schedule.OptimizerStep:
+                #     print("In after optimizer step")
+                #     if (self.global_rank == 0): 
+                #         import pdb
+                #         pdb.set_trace()
+                #     dist.barrier()

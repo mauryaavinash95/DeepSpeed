@@ -63,7 +63,7 @@ from deepspeed.runtime.sparse_tensor import SparseTensor
 
 from deepspeed.runtime import lr_schedules
 from deepspeed.utils import groups
-from deepspeed.utils import logger, log_dist, instrument_w_nvtx
+from deepspeed.utils import logger, log_dist, instrument_w_nvtx, timeit
 from deepspeed.utils.timer import NoopTimer, ThroughputTimer, SynchronizedWallClockTimer, \
     FORWARD_MICRO_TIMER, BACKWARD_MICRO_TIMER, BACKWARD_INNER_MICRO_TIMER, BACKWARD_REDUCE_MICRO_TIMER, \
     STEP_MICRO_TIMER, \
@@ -897,29 +897,34 @@ class DeepSpeedEngine(Module):
         log_dist(f'DeepSpeed LR Scheduler = {self.lr_scheduler}', ranks=[0])
 
     def _configure_checkpointing(self, dist_init_required):
-        self.checkpoint_engine = TorchCheckpointEngine()
+        dp_rank = groups._get_sequence_data_parallel_rank()
 
+        rank = self.local_rank if self.use_node_local_storage() else dp_rank
+        self.checkpoint_engine = TorchCheckpointEngine(None, self.global_rank)
         if self._config is not None and self._config.nebula_config.enabled:
             try:
                 from deepspeed.runtime.checkpoint_engine.nebula_checkpoint_engine import \
                     NebulaCheckpointEngine
-                self.checkpoint_engine = NebulaCheckpointEngine(config_params=self._config.nebula_config)
+                self.checkpoint_engine = NebulaCheckpointEngine(config_params=self._config.nebula_config, r=self.global_rank)
             except ImportError as err:
                 logger.error(f"No torch_nebula was found! Will fall back to torch.save. Details: {err}")
                 self.checkpoint_engine = TorchCheckpointEngine()
-
-        dp_rank = groups._get_sequence_data_parallel_rank()
-
-        rank = self.local_rank if self.use_node_local_storage() else dp_rank
-
-        if self._config is not None and self._config.veloc_config:
+        elif self._config is not None and self._config.veloc_ckpt_config:
             from deepspeed.runtime.checkpoint_engine.veloc_checkpoint_engine import \
                     VELOCCheckpointEngine
-            self.checkpoint_engine = VELOCCheckpointEngine(self._config.veloc_config)
-
-        if self._config is not None and self._config.async_ckpt_config:
+            self.checkpoint_engine = VELOCCheckpointEngine(self._config.veloc_ckpt_config, self.global_rank)
+        elif self._config is not None and self._config.async_ckpt_config:
             from deepspeed.runtime.checkpoint_engine.async_checkpoint_engine import AsyncCheckpointEngine
-            self.checkpoint_engine = AsyncCheckpointEngine()
+            self.checkpoint_engine = AsyncCheckpointEngine(self._config.async_ckpt_config, self.global_rank)
+
+        elif self._config is not None and self._config.none_ckpt_config:
+            from deepspeed.runtime.checkpoint_engine.none_checkpoint_engine import NoneCheckpointEngine
+            self.checkpoint_engine = NoneCheckpointEngine(self._config.none_ckpt_config, self.global_rank)
+
+        elif self._config is not None and self._config.torch_sn_async_ckpt_config:
+            from deepspeed.runtime.checkpoint_engine.torch_sn_async_checkpoint_engine import TSNAsyncCheckpointEngine
+            self.checkpoint_engine = TSNAsyncCheckpointEngine(self._config.torch_sn_async_ckpt_config, self.global_rank)
+
 
         # only the first data parallel process needs to store the model checkpoint
         # if you want to use node local storage this must be done by rank 0 on each
@@ -1661,6 +1666,7 @@ class DeepSpeedEngine(Module):
         """
         return self._step_applied
 
+    @timeit
     def deepspeed_io(self,
                      dataset,
                      batch_size=None,
@@ -1753,6 +1759,7 @@ class DeepSpeedEngine(Module):
         return scaled_loss
 
     @instrument_w_nvtx
+    @timeit
     def forward(self, *inputs, **kwargs):
         r"""Execute forward propagation
         Arguments:
@@ -1875,6 +1882,7 @@ class DeepSpeedEngine(Module):
             ranks=[0])
 
     @instrument_w_nvtx
+    @timeit
     def allreduce_gradients(self, bucket_size=MEMORY_OPT_ALLREDUCE_SIZE):
         assert not (self.bfloat16_enabled() and self.pipeline_parallelism), \
             f'allreduce_gradients() is not valid when bfloat+pipeline_parallelism is enabled'
@@ -1894,6 +1902,7 @@ class DeepSpeedEngine(Module):
                 self.buffered_allreduce_fallback(elements_per_buffer=bucket_size)
 
     @instrument_w_nvtx
+    @timeit
     def backward(self, loss, allreduce_gradients=True, release_loss=False, retain_graph=False, scale_wrt_gas=True):
         r"""Execute backward pass on the loss
         Arguments:
@@ -2026,6 +2035,7 @@ class DeepSpeedEngine(Module):
     def clip_fp32_gradients(self):
         clip_grad_norm_(parameters=self.module.parameters(), max_norm=self.gradient_clipping(), mpu=self.mpu)
 
+    @timeit
     def _take_model_step(self, lr_kwargs, block_eigenvalue={}):
         if self.gradient_clipping() > 0.0:
             if not (self.fp16_enabled() or self.bfloat16_enabled() or self.amp_enabled() or self.zero_optimization()):
@@ -2092,6 +2102,7 @@ class DeepSpeedEngine(Module):
         self.global_steps += 1
         self.global_samples += self.train_batch_size()
 
+    @timeit
     def step(self, lr_kwargs=None):
         r"""Execute the weight update step after forward and backward propagation
         on effective_train_batch.
@@ -2323,11 +2334,13 @@ class DeepSpeedEngine(Module):
 
         return tensor
 
+    @timeit
     def allreduce_and_copy(self, small_bucket, dp_group):
         allreduced = self.allreduce_bucket(small_bucket, dp_group)
         for buf, synced in zip(small_bucket, self.unflatten(allreduced, small_bucket)):
             buf.copy_(synced)
 
+    @timeit
     def allreduce_no_retain(self, bucket, dp_group, numel_per_bucket=500000000):
         small_bucket = []
         numel = 0
@@ -2372,6 +2385,7 @@ class DeepSpeedEngine(Module):
 
         return non_expert_grads, expert_grads
 
+    @timeit
     def _reduce_non_expert_gradients(self, grads, elements_per_buffer):
         split_buckets = split_half_float_double_sparse(grads)
         for _, bucket_tuple in enumerate(split_buckets):
@@ -2387,6 +2401,7 @@ class DeepSpeedEngine(Module):
             else:
                 self.allreduce_no_retain(bucket, dp_group=dp_group, numel_per_bucket=elements_per_buffer)
 
+    @timeit
     def _reduce_expert_gradients(self, expert_grads, elements_per_buffer):
         for ep_name, expert_grads_group in expert_grads.items():
             expert_split_buckets = split_half_float_double_sparse(expert_grads_group)
@@ -2400,6 +2415,7 @@ class DeepSpeedEngine(Module):
                                              dp_group=groups._get_expert_data_parallel_group(ep_name),
                                              numel_per_bucket=elements_per_buffer)
 
+    @timeit
     def buffered_allreduce_fallback(self, grads=None, elements_per_buffer=500000000):
         if grads is None:
             non_expert_grads, expert_grads = self._get_gradients_for_reduction()
@@ -2412,6 +2428,7 @@ class DeepSpeedEngine(Module):
         if self.has_moe_layers:
             self._reduce_expert_gradients(expert_grads, elements_per_buffer)
 
+    @timeit
     def sparse_allreduce_no_retain(self, bucket, dp_group):
         allreduced_sparses = self.sparse_allreduce_bucket(bucket, dp_group)
         # Densify sparse tensor and copy back to original location
@@ -2421,12 +2438,14 @@ class DeepSpeedEngine(Module):
             else:
                 tensor.orig_dense_tensor.copy_(tensor.to_dense())
 
+    @timeit
     def sparse_allreduce_bucket(self, bucket, dp_group):
         sparse_list = []
         for sparse in bucket:
             sparse_list.append(self.sparse_allreduce(sparse, dp_group))
         return sparse_list
 
+    @timeit
     def sparse_allreduce(self, sparse, dp_group):
         original_data_type = sparse.values.dtype
         if self.communication_data_type != sparse.values.dtype:
@@ -2452,6 +2471,7 @@ class DeepSpeedEngine(Module):
         sparse.values = torch.cat(values_device_list).to(original_data_type)
         return sparse
 
+    @timeit
     def sparse_all_gather(self, value, dp_group):
         my_size = torch.LongTensor([value.size()[0]]).to(self.device)
         all_sizes = self.all_gather_scalar(my_size, dp_group)
@@ -2479,6 +2499,7 @@ class DeepSpeedEngine(Module):
 
         return tensors
 
+    @timeit
     def all_gather_scalar(self, value, dp_group):
         tensor_list = [value.new_zeros(value.size()) for _ in range(dist.get_world_size(group=dp_group))]
         dist.all_gather(tensor_list, value, group=dp_group)
@@ -2505,7 +2526,7 @@ class DeepSpeedEngine(Module):
                             model=None,
                             mpu=None,
                             num_experts=1,
-                            checkpoint_engine=TorchCheckpointEngine()):
+                            checkpoint_engine=TorchCheckpointEngine(None, 0)):
         if old_moe_load:
             expp_rank = groups._get_expert_data_parallel_rank(groups._get_max_expert_size_name())
 
@@ -2978,10 +2999,12 @@ class DeepSpeedEngine(Module):
             elif not valid:
                 logger.warning(msg)
 
+    @timeit
     def save_checkpoint_terminate(self):
-        print("===================== Terminating now ============== ")
+        print(f"===================== Terminating now ============== {time.time_ns()}")
         self.checkpoint_engine.shutdown()
 
+    @timeit
     def save_checkpoint(self, save_dir, tag=None, client_state={}, save_latest=True, exclude_frozen_parameters=False):
         """Save training checkpoint
 
@@ -2998,7 +3021,6 @@ class DeepSpeedEngine(Module):
         process with rank 0.
 
         """
-        t = time.time()
         if self._optimizer_has_ckpt_event_prologue():
             # Custom preparation for checkpoint save, if applicable
             self.optimizer.checkpoint_event_prologue()
@@ -3010,7 +3032,9 @@ class DeepSpeedEngine(Module):
 
         # Ensure save_dir directory exists
         self.checkpoint_engine.makedirs(save_dir, exist_ok=True)
+        print("Starting to checkpoint on rank ", rank)
         dist.barrier()
+        print("All ranks after first dist.barrier() rank ", rank)
 
         if tag is None:
             tag = f"global_step{self.global_steps}"
@@ -3047,15 +3071,13 @@ class DeepSpeedEngine(Module):
 
         if self._optimizer_has_ckpt_event_epilogue():
             self.optimizer.checkpoint_event_epilogue()
-        logger.info(f"Save checkpoint (engine.py) before commit {time.time()-t} for {tag}")
         # Save latest checkpoint tag
+        # if self._config is not None and not self._config.veloc_ckpt_config and not self._config.async_ckpt_config:
         self.checkpoint_engine.commit(tag)
-        if save_latest and rank == 0:
-            with open(os.path.join(save_dir, 'latest'), 'w') as fd:
-                fd.write(tag)
-        logger.info(f"Save checkpoint (engine.py) completed in {time.time()-t} for {tag}")
+        # if save_latest and rank == 0:
+        #     with open(os.path.join(save_dir, 'latest'), 'w') as fd:
+        #         fd.write(tag)
         dist.barrier()
-        logger.info(f"Save checkpoint (engine.py) out of barrier in {time.time()-t} for {tag}")
 
         return True
 
@@ -3203,7 +3225,7 @@ class DeepSpeedEngine(Module):
         return success
 
     def _save_checkpoint(self, save_dir, tag, client_state={}, exclude_frozen_parameters=False):
-
+        start_time = time.time()
         save_path = self._get_ckpt_name(save_dir, tag)
 
         zero_optimizer_state = self.zero_optimization() or self.bfloat16_enabled()
@@ -3215,7 +3237,9 @@ class DeepSpeedEngine(Module):
         # then instead just returns None.  The module_state_dict() implementation in
         # PipelineEngine expects the save path to be set in self._curr_ckpt_path.
         self._curr_ckpt_path = os.path.join(save_dir, tag)
+        logger.info(f"In _save_checkpoint before module_state_dict time {time.time()-start_time} for save path {save_path}")
         module = self.module_state_dict(exclude_frozen_parameters=exclude_frozen_parameters)
+        logger.info(f"In _save_checkpoint after module_state_dict time {time.time()-start_time} for save path {save_path}")
         self._curr_ckpt_path = None
 
         state = dict(module=module,
@@ -3240,7 +3264,7 @@ class DeepSpeedEngine(Module):
                      ds_config=self.config,
                      ds_version=version)
         state.update(client_state)
-
+        logger.info(f"In _save_checkpoint for time {time.time()-start_time} for save path {save_path}")
         if self.save_non_zero_checkpoint:
             log_dist(message=f'Saving model checkpoint: {save_path}', ranks=[0, 1])
             self.checkpoint_engine.save(state, save_path)
@@ -3385,7 +3409,7 @@ class DeepSpeedEngine(Module):
             logger.info(
                 f'Warning: Could not change permissions for {dst} due to error: {e}. Continuing without changing permissions.'
             )
-
+    @timeit
     def _save_zero_checkpoint(self, save_path, tag):
         t = time.time()
         zero_checkpoint_name = self._get_zero_ckpt_name(save_path, tag)

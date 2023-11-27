@@ -7,7 +7,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m)
 {
     py::class_<veloc_ckpt_t>(m, "veloc_ckpt_handle")
         // Host cache, persistent storage path
-        .def(py::init<const size_t, int>())
+        .def(py::init<const size_t, int, int>())
         .def("ckpt_header_size", &veloc_ckpt_t::ckpt_header_size)
         .def("ckpt_pickle", &veloc_ckpt_t::ckpt_pickle)
         .def("ckpt_obj", &veloc_ckpt_t::ckpt_obj)

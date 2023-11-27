@@ -24,6 +24,7 @@ from deepspeed.git_version_info import version
 
 from deepspeed.runtime.constants import PIPE_REPLICATED
 from deepspeed.accelerator import get_accelerator
+from deepspeed.utils import logger, timeit
 
 from deepspeed.checkpoint.constants import (DS_VERSION, GROUP_PADDINGS, PARTITION_COUNT,
                                             SINGLE_PARTITION_OF_FP32_GROUPS, BASE_OPTIMIZER_STATE,
@@ -652,6 +653,7 @@ class DeepSpeedZeroOptimizer(ZeROOptimizer):
     #########################################################################
     #################### ZeRO Stage 1 - reduce gradients ####################
     #########################################################################
+    @timeit
     def reduce_gradients(self, pipeline_parallel=False):
         world_size = dist.get_world_size(self.dp_process_group)
         my_rank = dist.get_rank(self.dp_process_group)
@@ -821,6 +823,7 @@ class DeepSpeedZeroOptimizer(ZeROOptimizer):
     def overlapping_partition_gradients_reduce_epilogue(self):
         self.independent_gradient_partition_epilogue()
 
+    @timeit
     def fill_grad_accum_attribute(self):
         for group in self.bit16_groups:
             for param in group:
@@ -1090,7 +1093,7 @@ class DeepSpeedZeroOptimizer(ZeROOptimizer):
                 dest_tensor = self.single_partition_of_fp32_groups[param_group_index].grad.view(-1).narrow(
                     0, dest_offset, num_elements)
                 self.offload_gradient_dict[param_group_index].append(dest_tensor)
-
+    @timeit
     def async_accumulate_grad_in_cpu_via_gpu(self, param):
         param_id = self.get_param_id(param)
 
@@ -1426,6 +1429,7 @@ class DeepSpeedZeroOptimizer(ZeROOptimizer):
             self.previous_reduced_grads = None
 
     # if rank is specified do a reduction instead of an allreduce
+    @timeit
     def allreduce_and_copy(self, small_bucket, rank=None, log=None):
         if self.overlap_comm:
             get_accelerator().synchronize()
@@ -1441,6 +1445,7 @@ class DeepSpeedZeroOptimizer(ZeROOptimizer):
                 for buf, synced in zip(small_bucket, self.unflatten(allreduced, small_bucket)):
                     buf.copy_(synced)
 
+    @timeit
     def allreduce_no_retain(self, bucket, numel_per_bucket=500000000, rank=None, log=None):
         small_bucket = []
         numel = 0
@@ -1455,7 +1460,6 @@ class DeepSpeedZeroOptimizer(ZeROOptimizer):
             self.allreduce_and_copy(small_bucket, rank=rank, log=log)
 
     # allows using reduction of gradients instead of using all_reduce
-
     def buffered_reduce_fallback(self, rank, grads, elements_per_buffer=500000000, log=None):
         split_buckets = split_half_float_double(grads)
 
@@ -1536,6 +1540,7 @@ class DeepSpeedZeroOptimizer(ZeROOptimizer):
                         p.grad.detach_()
                         p.grad.zero_()
 
+    @timeit
     def _model_parallel_all_reduce(self, tensor, op):
         """ Perform all reduce within model parallel group, if any.
         """
@@ -1683,6 +1688,7 @@ class DeepSpeedZeroOptimizer(ZeROOptimizer):
         partition_id = dist.get_rank(group=self.real_dp_process_group[group_no])
         return [bit16_partitions[dist.get_rank(group=self.real_dp_process_group[group_no])]]
 
+    @timeit
     def _optimizer_step(self, group_no):
         original_param_groups = self.optimizer.param_groups
         self.optimizer.param_groups = [original_param_groups[group_no]]
@@ -1695,6 +1701,7 @@ class DeepSpeedZeroOptimizer(ZeROOptimizer):
         self.optimizer.step()
         self.optimizer.param_groups = original_param_groups
 
+    @timeit
     def step(self, closure=None):
         """
         Not supporting closure.
@@ -1814,6 +1821,7 @@ class DeepSpeedZeroOptimizer(ZeROOptimizer):
         return
 
     @torch.no_grad()
+    @timeit
     def update_lp_params(self):
         for i, (bit16_partitions, fp32_partition) in enumerate(
                 zip(self.parallel_partitioned_bit16_groups, self.single_partition_of_fp32_groups)):
@@ -1919,6 +1927,7 @@ class DeepSpeedZeroOptimizer(ZeROOptimizer):
                 return True
             return False
 
+    @timeit
     def backward(self, loss, retain_graph=False):
         """
         :attr:`backward` performs the following steps:

@@ -19,8 +19,9 @@ def _get_tag_from_path(path):
 
 class NebulaCheckpointEngine(CheckpointEngine):
 
-    def __init__(self, config_params=None):
-        super().__init__(config_params)
+    def __init__(self, config_params, r):
+        super().__init__(config_params, r)
+        self.rank = r
         self.checkpoint = None
         self.tag_flag = None
         self.enable_nebula_load = config_params.enable_nebula_load
@@ -107,7 +108,7 @@ class NebulaCheckpointEngine(CheckpointEngine):
         return commit_rls
 
 
-    def wait(self, prev_version):
+    def wait(self, prev_version = -1):
         return True
     
     def shutdown(self):

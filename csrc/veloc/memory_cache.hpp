@@ -1,6 +1,6 @@
 #ifndef __MEMORY_CACHE_HPP
 #define __MEMORY_CACHE_HPP
-
+#include <atomic>
 #include <iostream>
 #include <vector>
 #include <mutex>
@@ -13,6 +13,7 @@
 #include <fstream>  
 #include <cstdint>
 #include <cmath>
+#include <thread>
 
 #define checkCuda(ans) { checkCudaFunc((ans), __FILE__, __LINE__); }
 inline void checkCudaFunc(cudaError_t code, const char *file, int line, bool abort=true) {
@@ -24,6 +25,8 @@ inline void checkCudaFunc(cudaError_t code, const char *file, int line, bool abo
 
 
 static auto beginning = std::chrono::steady_clock::now();
+// #define TIMER_START(t) {}
+// #define TIMER_STOP(t, m, s) {}
 #define TIMER_START(timer) auto timer = std::chrono::steady_clock::now();
 #define TIMER_STOP(timer, message, size) {\
     auto now = std::chrono::steady_clock::now();\
@@ -38,12 +41,15 @@ static auto beginning = std::chrono::steady_clock::now();
     std::cout << "[" << level << " " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - beginning).count() << "] [" \
         << __FILE__ << ":" << __LINE__ << ":" << __FUNCTION__ << "] " << message << std::endl
 
-#define DBG(message) MESSAGE("DEBUG", message)
+// #define DBG(message) MESSAGE("DEBUG", message)
+#define DBG(m) {}
 
 #define FATAL(message) {\
     MESSAGE("FATAL", message);\
     std::abort(); \
 }
+
+#define MIN_CHUNK_SIZE (32<<20)
 
 struct mem_region_t {
     uint64_t uid;
@@ -52,26 +58,30 @@ struct mem_region_t {
     size_t end_offset;
     mem_region_t(uint64_t u, char *p, size_t s, size_t e): uid(u), ptr(p), start_offset(s), end_offset(e) {};
 };
-static volatile uint64_t local_uid = 1;
+
 class memory_cache_t {
     int _device_id;
-    size_t _total_memory;
-    size_t _curr_size;
-    size_t _head;
-    size_t _tail;
+    std::atomic<size_t> _total_memory;
+    std::atomic<size_t> _curr_size;
+    std::atomic<size_t> _head;
+    std::atomic<size_t> _tail;
     char* _start_ptr;
 
     std::mutex _mem_mutex;
     std::condition_variable _mem_cv;
     std::deque<mem_region_t*> _mem_q;
+    std::thread malloc_thread;
+    size_t max_allocated = 0;
+    bool is_active = true;
 public:
     memory_cache_t(int d, size_t t);
 
     ~memory_cache_t();
 
-    mem_region_t* _assign(size_t h, size_t s);
+    void allocate_pin_mem();
+    mem_region_t* _assign(const uint64_t uid, size_t h, size_t s);
 
-    mem_region_t* allocate(size_t s);
+    mem_region_t* allocate(const uint64_t uid, size_t s);
 
     void deallocate(uint64_t _uid, size_t s);
 

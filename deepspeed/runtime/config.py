@@ -881,17 +881,28 @@ class DeepSpeedConfig(object):
         self.nebula_config = DeepSpeedNebulaConfig(param_dict)
 
 
-        if "veloc_config" in param_dict.keys():
-            self.veloc_config = copy.deepcopy(param_dict["veloc_config"])
-            self.veloc_config["enabled"] = True
+        if "veloc_ckpt_config" in param_dict.keys():
+            self.veloc_ckpt_config = copy.deepcopy(param_dict["veloc_ckpt_config"])
+            self.veloc_ckpt_config["enabled"] = True
         else:
-            self.veloc_config = None
+            self.veloc_ckpt_config = None
 
         if "async_ckpt_config" in param_dict.keys():
             self.async_ckpt_config = copy.deepcopy(param_dict["async_ckpt_config"])
             self.async_ckpt_config["enabled"] = True
         else:
             self.async_ckpt_config = None
+
+        if "none_ckpt_config" in param_dict.keys():
+            self.none_ckpt_config = {'enabled': True}
+        else:
+            self.none_ckpt_config = None
+
+        # import pdb; pdb.set_trace()
+        if "torch_sn_async_ckpt_config" in param_dict.keys():
+            self.torch_sn_async_ckpt_config = {'enabled': True}
+        else:
+            self.torch_sn_async_ckpt_config = None
 
         self.weight_quantization_config = WeightQuantConfig(
             **param_dict['weight_quantization']) if 'weight_quantization' in param_dict else None

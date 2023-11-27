@@ -14,14 +14,14 @@ import torch
 import torch.nn as nn
 from deepspeed import comm as dist
 
-from deepspeed.utils import logger
+from deepspeed.utils import logger, timeit
 from .. import utils as ds_utils
 from ..activation_checkpointing import checkpointing
 from .topology import PipeDataParallelTopology, PipelineParallelGrid
 from deepspeed.runtime.state_dict_factory import SDLoaderFactory
 from deepspeed.accelerator import get_accelerator
 from deepspeed.checkpoint.utils import clone_tensors_for_torch_save
-
+import time
 
 class PipelineError(Exception):
     """Errors related to the use of deepspeed.PipelineModule """
@@ -561,6 +561,7 @@ class PipelineModule(nn.Module):
         ckpt_files.sort()
         return ckpt_files
 
+    @timeit
     def save_state_dict(self, save_dir, checkpoint_engine, exclude_frozen_params=False):
         # Processes having the same model parallel rank on different data parallel instances
         # have identical layer weights.  We can distribute the task of saving the layer weights
@@ -591,8 +592,15 @@ class PipelineModule(nn.Module):
             if exclude_frozen_params:
                 for n in self._get_frozen_parameter_names(layer):
                     del orig_state_dict[n]
+            t = time.time()
+            # if checkpoint_engine
             final_state_dict = clone_tensors_for_torch_save(orig_state_dict)
+            # final_state_dict = orig_state_dict
+            # import pdb; pdb.set_trace()
+            logger.info(f"[SaveStateDict] clone tensors took {time.time()-t} for path {model_ckpt_path}")
+            # t = time.time()
             checkpoint_engine.save(final_state_dict, model_ckpt_path)
+            # logger.info(f"[SaveStateDict] ckpt engine save took {time.time()-t} for path {model_ckpt_path}")
 
     def load_state_dir(self, load_dir, checkpoint_engine, strict=True):
         for idx, layer in enumerate(self.forward_funcs):

@@ -9,30 +9,26 @@ from deepspeed.runtime.checkpoint_engine.checkpoint_engine import \
     CheckpointEngine
 import time
 
-class TorchCheckpointEngine(CheckpointEngine):
+class NoneCheckpointEngine(CheckpointEngine):
 
     def __init__(self, config_params, r):
         super().__init__(config_params, r)
         self.rank = r
 
     def create(self, tag):
-        log_dist(f"[Torch] Checkpoint {tag} is about to be saved!", ranks=[0])
+        log_dist(f"[None] Checkpoint {tag} is about to be saved!", ranks=[0])
 
     def save(self, state_dict, path: str):
-        logger.info(f"[Torch] Saving {path}...")
-        t = time.time()
-        torch.save(state_dict, path)
-        logger.info(f"[Torch] Saved {path}. in time {time.time()-t}")
+        logger.info(f"[None] Saved {path}. in time {0}")
         return None
 
     def load(self, path: str, map_location=None):
-        logger.info(f"[Torch] Loading checkpoint from {path}...")
+        logger.info(f"[None] Loading checkpoint from {path}...")
         partition = torch.load(path, map_location=map_location)
-        logger.info(f"[Torch] Loaded checkpoint from {path}.")
+        logger.info(f"[None] Loaded checkpoint from {path}.")
         return partition
 
     def commit(self, tag):
-        logger.info(f"[Torch] Checkpoint {tag} is ready now!")
         return True
 
     def wait(self, prev_version = -1):

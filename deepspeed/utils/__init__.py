@@ -3,7 +3,7 @@
 
 # DeepSpeed Team
 
-from .logging import logger, log_dist
+from .logging import logger, log_dist, timeit
 from .comms_logging import get_caller_func
 #from .distributed import init_distributed
 from .init_on_device import OnDevice

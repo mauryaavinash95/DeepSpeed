@@ -7,9 +7,10 @@ import os
 
 
 class CheckpointEngine(object):
-
+    rank = 0
     # init checkpoint engine for save/load
-    def __init__(self, config_params=None):
+    def __init__(self, config_params, r):
+        self.rank = r
         pass
 
     def create(self, tag):
@@ -29,7 +30,7 @@ class CheckpointEngine(object):
         # to tell checkpoint services if all files are ready.
         pass
 
-    def wait(self, prev_version):
+    def wait(self, prev_version = -1):
         pass
     
     def shutdown(self):

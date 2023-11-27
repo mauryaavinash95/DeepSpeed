@@ -32,7 +32,7 @@
 namespace py = pybind11;
 
 
-
+static volatile uint64_t local_uid = 1;
 class veloc_ckpt_t {    
     // Tuple contains: <version, unique_region_id, path, tensor, size, file_offset>
     std::deque<std::tuple<int, uint64_t, std::string, torch::Tensor, size_t, size_t>> _pending_d2h;
@@ -45,24 +45,37 @@ class veloc_ckpt_t {
     std::condition_variable _cv_h2f;
     std::thread _thread_h2f;
 
+
+    std::deque<std::tuple<int, uint64_t, std::string, char *, size_t, size_t>> _pending_p2f;
+    std::mutex _mutex_p2f;
+    std::condition_variable _cv_p2f;
+    std::thread _thread_p2f;
+
     bool is_active = true;
     int _gpu_id = 0;
     cudaStream_t _cpy_stream;    
     memory_cache_t *mem;
     std::stringstream s_stream;
+    int writer_threads = 1;
     
     public:
-    veloc_ckpt_t(size_t host_cache, int g) {
+    veloc_ckpt_t(size_t host_cache, int g, int _writer_threads = 1) {
         try {
+            DBG("Got on GPU " << g << " host cache size of " << host_cache << " with writer threads " << _writer_threads);
             _gpu_id = g;
+            writer_threads = _writer_threads;
             checkCuda(cudaSetDevice(_gpu_id));
             checkCuda(cudaStreamCreate(&_cpy_stream));
             is_active = true;
             _thread_d2h = std::thread([&] { _d2h_trf(); });
             _thread_h2f = std::thread([&] { _h2f_trf(); });
+            _thread_p2f = std::thread([&] { _p2f_trf(); });
+            // _thread_d2h.detach();
+            // _thread_h2f.detach();
             mem = new memory_cache_t(_gpu_id, host_cache);
             _pending_d2h.clear();
             _pending_h2f.clear();
+            _pending_p2f.clear();
             DBG("Inited veloc_ckpt_t on GPU ID " << g << " for host cache size of (MB) " << (host_cache >> 20));
         } catch(std::exception& e) {
             FATAL("Standard exception caught in veloc init: " << e.what());
@@ -81,6 +94,8 @@ class veloc_ckpt_t {
     void wait(int version = -1);
     void _d2h_trf();
     void _h2f_trf();
+    void _p2f_trf();
+    void _write_file(char * ptr, std::string path, size_t startIdx, size_t endIdx, size_t file_offset, std::uint64_t uid, int version, int threadID);
     void shutdown();
 };
 
