@@ -1766,7 +1766,7 @@ class DeepSpeedEngine(Module):
             *inputs: Variable length input list
             **kwargs: variable length keyword arguments
         """
-
+        # t = time.time()
         if self.autotuning_profile_model_info():
             ma = get_ma_status()
         else:
@@ -1795,7 +1795,9 @@ class DeepSpeedEngine(Module):
         if self.module.training:
             if self.progressive_layer_drop:
                 kwargs.update(self.progressive_layer_drop.get_state())
+        # logger.info(f"Stage-1 in forward pass {time.time()-t}")
 
+        # t = time.time()
         if self.__class__.__name__ != "PipelineEngine":
             # TODO: The above if condition is a HACK since for PipelineEngine
             # it's difficult to inject argument in forward pass.
@@ -1803,7 +1805,9 @@ class DeepSpeedEngine(Module):
                 self.curriculum_scheduler_legacy.update_difficulty(self.global_steps + 1)
                 if self.curriculum_params_legacy()["curriculum_type"] == "seqlen":
                     kwargs.update({"curriculum_seqlen": self.curriculum_scheduler_legacy.get_current_difficulty()})
+        # logger.info(f"Stage-2 in forward pass {time.time()-t}")
 
+        # t = time.time()
         if self.module.training and self.random_ltd_enabled():
             self.random_ltd_scheduler.update_seq(self.global_steps)
 
@@ -1817,12 +1821,16 @@ class DeepSpeedEngine(Module):
 
         if self.training_dataloader is None:
             self.tput_timer.start()
-
+        # logger.info(f"Stage-3 in forward pass {time.time()-t}")
+        # t = time.time()
         if self.fp16_auto_cast():
             inputs = self._cast_inputs_half(inputs)
-
+        # logger.info(f"Stage-4 in forward pass {time.time()-t}")
+        # t = time.time()
         loss = self.module(*inputs, **kwargs)
+        # logger.info(f"Stage-5 in forward pass {time.time()-t}: {inputs}: {kwargs}|")
 
+        # t = time.time()
         if self.zero_optimization_partition_weights():
             # Disable automated discovery of external parameters
             for module in self.module.modules():
@@ -1840,6 +1848,7 @@ class DeepSpeedEngine(Module):
             exit()
         else:
             see_memory_usage("Engine after forward", force=self.memory_breakdown())
+        # logger.info(f"Stage-6 in forward pass {time.time()-t}")
         return loss
 
     def _cast_inputs_half(self, inputs):

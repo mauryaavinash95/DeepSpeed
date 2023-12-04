@@ -82,17 +82,18 @@ class PDSHRunner(MultiNodeRunner):
 
         # https://linux.die.net/man/1/pdsh
         # %n will be replaced by pdsh command
-        # deepspeed_launch = [
-        #     exports, f"cd {os.path.abspath('.')};", f"nsys profile --force-overwrite true -o $NSYS_REPORT_DIR-%n",
-        #     sys.executable, "-u", "-m", "deepspeed.launcher.launch",
-        #     f'--world_info={self.world_info_base64}', "--node_rank=%n", f"--master_addr={self.args.master_addr}",
-        #     f"--master_port={self.args.master_port}"
-        # ]
         deepspeed_launch = [
-            exports, f"cd {os.path.abspath('.')};", sys.executable, "-u", "-m", "deepspeed.launcher.launch",
+            exports, f"cd {os.path.abspath('.')};", 
+            # f"nsys profile --force-overwrite true -o $NSYS_REPORT_DIR-%n",
+            sys.executable, "-u", "-m", "deepspeed.launcher.launch",
             f'--world_info={self.world_info_base64}', "--node_rank=%n", f"--master_addr={self.args.master_addr}",
             f"--master_port={self.args.master_port}"
         ]
+        # deepspeed_launch = [
+        #     exports, f"cd {os.path.abspath('.')};", sys.executable, "-u", "-m", "deepspeed.launcher.launch",
+        #     f'--world_info={self.world_info_base64}', "--node_rank=%n", f"--master_addr={self.args.master_addr}",
+        #     f"--master_port={self.args.master_port}"
+        # ]
         if self.args.no_python:
             deepspeed_launch.append("--no_python")
         if self.args.module:

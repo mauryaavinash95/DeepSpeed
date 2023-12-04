@@ -592,13 +592,11 @@ class PipelineModule(nn.Module):
             if exclude_frozen_params:
                 for n in self._get_frozen_parameter_names(layer):
                     del orig_state_dict[n]
-            t = time.time()
+            # t = time.time()
             # if checkpoint_engine
             final_state_dict = clone_tensors_for_torch_save(orig_state_dict)
             # final_state_dict = orig_state_dict
             # import pdb; pdb.set_trace()
-            logger.info(f"[SaveStateDict] clone tensors took {time.time()-t} for path {model_ckpt_path}")
-            # t = time.time()
             checkpoint_engine.save(final_state_dict, model_ckpt_path)
             # logger.info(f"[SaveStateDict] ckpt engine save took {time.time()-t} for path {model_ckpt_path}")
 

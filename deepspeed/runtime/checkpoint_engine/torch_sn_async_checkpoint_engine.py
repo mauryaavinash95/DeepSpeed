@@ -12,16 +12,20 @@ from torchsnapshot import StateDict
 from torchsnapshot.snapshot import Snapshot
 from collections import deque 
 import sys
-
+import logging
 
 
 class TSNAsyncCheckpointEngine(CheckpointEngine):
 
     def __init__(self, config_params, r):
+        t = time.time()
         super().__init__(config_params, r)
         self.rank = r
         # print("<<<<<<<<<<< Inited on rank ", self.rank)
         self.prev_sn = deque()
+        logger = logging.getLogger("torchsnapshot.scheduler")
+        logger.setLevel(logging.DEBUG)
+        print(f"[TSNAsyncCheckpointEngine] Init took {time.time()-t}")
 
     def create(self, tag):
         log_dist(f"[TSNAsyncCheckpointEngine][Rank {self.rank}] Checkpoint {tag} is about to be saved!", ranks=[0])
@@ -49,7 +53,7 @@ class TSNAsyncCheckpointEngine(CheckpointEngine):
 
     @instrument_w_nvtx
     def save(self, state_dict, path: str):
-        # logger.info(f"[TSNAsyncCheckpointEngine][Rank {self.rank}] Saving {path}...")
+        # logger.info(f"[TSNAsyncCheckpointEngine][Rank {self.rank}] Starting ckpt {path} at {time.time_ns()}")
         t = time.time()
         try:
             # x = self._to_statedict(state_dict, {})
@@ -59,8 +63,8 @@ class TSNAsyncCheckpointEngine(CheckpointEngine):
                                     )
             self.prev_sn.append((path, p))
             # p.wait()
-            # Snapshot.take(path=path, app_state=x)
-            # logger.info(f"[TSNAsyncCheckpointEngine][Rank {self.rank}] Saved {path}. in time {time.time()-t}")
+            # Snapshot.take(path=path, app_state={"objects": StateDict(ckpt=state_dict)}, replicated=[])
+            logger.info(f"[TSNAsyncCheckpointEngine][Rank {self.rank}] Saved {path}. in time {time.time()-t} started at {time.time_ns()}")
         except Exception as e:
             print(f"TSNAsyncCheckpointEngine][Rank {self.rank}] Async checkpoint failed with error: {e}")
             sys.exit(-1)
@@ -107,10 +111,12 @@ class TSNAsyncCheckpointEngine(CheckpointEngine):
                 # logger.info(f"[TSNAsyncCheckpointEngine][Rank {self.rank}] In wait for {len(self.prev_sn)} for path {path}.")
                 # for i, (x, y) in enumerate(self.prev_sn):
                 #     print(i, x, y, y.done())
-                if not p.done():
+                # while not p.done():
+                #     pass
+                while not p.done():
                     # logger.info(f"[TSNAsyncCheckpointEngine] Waiting for {path}.")
                     p.wait()
-                logger.info(f"[TSNAsyncCheckpointEngine][Rank {self.rank}] time {time.time()-inner_t} len {len(self.prev_sn)} for path {path}.")
+                logger.info(f"[TSNAsyncCheckpointEngine][Rank {self.rank}]  at time {time.time_ns()} time {time.time()-inner_t} len {len(self.prev_sn)} for path {path}.")
                 # for i, (x, y) in enumerate(self.prev_sn):
                 #     if y.done():
                 #         logger.info(f"[TSNAsyncCheckpointEngine] Done checkpointing {i}, {x}, {y}.")

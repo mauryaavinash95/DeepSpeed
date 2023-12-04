@@ -14,6 +14,10 @@
 #include <cstdint>
 #include <cmath>
 #include <thread>
+#include <omp.h>
+#include <cstdlib>
+#include <sys/mman.h>
+#include <cstring>
 
 #define checkCuda(ans) { checkCudaFunc((ans), __FILE__, __LINE__); }
 inline void checkCudaFunc(cudaError_t code, const char *file, int line, bool abort=true) {
@@ -37,8 +41,9 @@ static auto beginning = std::chrono::steady_clock::now();
         << " [THRU: " << (double)((double)size/(double)d) << "]" << std::endl; \
 }
 
+// std::cout << "[" << level << " " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - beginning).count() << "] [" 
 #define MESSAGE(level, message) \
-    std::cout << "[" << level << " " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - beginning).count() << "] [" \
+    std::cout << "[" \
         << __FILE__ << ":" << __LINE__ << ":" << __FUNCTION__ << "] " << message << std::endl
 
 // #define DBG(message) MESSAGE("DEBUG", message)
@@ -49,8 +54,10 @@ static auto beginning = std::chrono::steady_clock::now();
     std::abort(); \
 }
 
-#define MIN_CHUNK_SIZE (32<<20)
-
+#define MIN_CHUNK_SIZE (256<<20)
+#define MALLOC_THREADS (8)
+#define HUGEPAGES_SIZE (2*1024*1024)
+#define CACHE_LINE_SIZE (64)
 struct mem_region_t {
     uint64_t uid;
     char *ptr;

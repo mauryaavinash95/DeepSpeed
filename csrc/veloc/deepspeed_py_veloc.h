@@ -27,6 +27,7 @@
 #include <cstdint>
 #include <fstream>
 #include <chrono>
+#include <unistd.h>
 #include "memory_cache.hpp"
 
 namespace py = pybind11;
@@ -35,12 +36,13 @@ namespace py = pybind11;
 static volatile uint64_t local_uid = 1;
 class veloc_ckpt_t {    
     // Tuple contains: <version, unique_region_id, path, tensor, size, file_offset>
-    std::deque<std::tuple<int, uint64_t, std::string, torch::Tensor, size_t, size_t>> _pending_d2h;
+    std::deque<std::tuple<int, uint64_t, std::string, torch::Tensor, size_t, size_t, uint64_t>> _pending_d2h;
     std::mutex _mutex_d2h;
     std::condition_variable _cv_d2h;
     std::thread _thread_d2h;
 
-    std::deque<std::tuple<int, uint64_t, std::string, torch::Tensor, size_t, size_t>> _pending_h2f;
+    // std::deque<std::tuple<int, uint64_t, std::string, torch::Tensor, size_t, size_t, uint64_t>> _pending_h2f;
+    std::deque<std::tuple<int, uint64_t, std::string, char *, size_t, size_t, uint64_t>> _pending_h2f;
     std::mutex _mutex_h2f;
     std::condition_variable _cv_h2f;
     std::thread _thread_h2f;
@@ -83,6 +85,11 @@ class veloc_ckpt_t {
             FATAL("Unknown exception caught in veloc init.");
         }
     };
+
+    uint64_t get_current_ts() {
+        return std::chrono::duration_cast<std::chrono::microseconds>
+        (std::chrono::system_clock::now().time_since_epoch()).count();
+    }
 
     // void begin_ckpt_version(int version);
     void ckpt_header_size(int version, const std::uint64_t start_offset, const std::uint64_t end_offset, const std::uint64_t value, std::string path);

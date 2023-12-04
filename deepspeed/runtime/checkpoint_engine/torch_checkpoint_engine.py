@@ -19,7 +19,7 @@ class TorchCheckpointEngine(CheckpointEngine):
         log_dist(f"[Torch] Checkpoint {tag} is about to be saved!", ranks=[0])
 
     def save(self, state_dict, path: str):
-        logger.info(f"[Torch] Saving {path}...")
+        # logger.info(f"[Torch] Saving {path}...")
         t = time.time()
         torch.save(state_dict, path)
         logger.info(f"[Torch] Saved {path}. in time {time.time()-t}")

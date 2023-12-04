@@ -32,7 +32,7 @@ class VelocCkptBuilder(CUDAOpBuilder):
     #     return args + self.version_dependent_macros() + addn_args
 
     def cxx_args(self):
-        args = super().cxx_args() + ['-std=c++14']
+        args = super().cxx_args() + ['-std=c++14', '-fopenmp']
         return args + self.version_dependent_macros()
 
     # def cxx_args(self):

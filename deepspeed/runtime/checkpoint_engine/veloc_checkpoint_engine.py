@@ -41,6 +41,7 @@ class VELOCCheckpointEngine(CheckpointEngine):
 
     def __init__(self, config_params, r):
         try:
+            t = time.time()
             super().__init__(config_params, r)
             self.rank = r
             self.ckpt_engine = VelocCkptBuilder().load().veloc_ckpt_handle(
@@ -50,6 +51,7 @@ class VELOCCheckpointEngine(CheckpointEngine):
                     )
             self.futures = None
             self.executor = ThreadPoolExecutor(max_workers=int(config_params["writer_threads"]))
+            print(f"[VELOC] Init took {time.time()-t}")
         except Exception as exc2:
             print("[ERROR]Got exception during VELOC init ", exc2)
             sys.exit(-1)
@@ -91,7 +93,7 @@ class VELOCCheckpointEngine(CheckpointEngine):
         except Exception as exc:
             logger.info(f"[VELOC][ERROR] From _to_cpu, generated exception: {exc}")
 
-    @instrument_w_nvtx
+    # @instrument_w_nvtx
     def save_background(self, state_dict, path: str):
         try:
             start_time = time.time()
@@ -103,7 +105,7 @@ class VELOCCheckpointEngine(CheckpointEngine):
             #     import pdb; pdb.set_trace();
             new_state_dict, async_copies_list = self._parse_dict(state_dict, new_state_dict, async_copies_list)
             serialized_dict = pickle.dumps(new_state_dict, protocol=pickle.HIGHEST_PROTOCOL)
-            logger.info(f"[VELOC] Time to serialize {path}, {time.time()-t_begin}, {len(serialized_dict)}")
+            # logger.info(f"[VELOC] Time to serialize {path}, {time.time()-t_begin}, {len(serialized_dict)}")
             
             t_begin = time.time()
             headers = np.zeros((len(async_copies_list)+1, 2), dtype=np.uint64) #[(ctypes.c_uint64(0), ctypes.c_uint64(0))]*(len(async_copies_list)+1)
@@ -117,7 +119,7 @@ class VELOCCheckpointEngine(CheckpointEngine):
             file_offset += len(serialized_dict)                 # Add offset for writing the serial-dict
             
             # self.ckpt_engine.ckpt_header_size(0, ctypes.sizeof(ctypes.c_uint64), header_size, path) # Write size of header list
-            self.ckpt_engine.ckpt_header_size(version, 0, SIZE_UINT64, len(headers), path) # Write size of header list
+            # self.ckpt_engine.ckpt_header_size(version, 0, SIZE_UINT64, len(headers), path) # Write size of header list
             # After this we should be writing headers, but we do not have file offsets yet.
             # === This was being written separately.
             # self.ckpt_engine.ckpt_pickle(version, headers[0][0], headers[0][1], serialized_dict, path)  # Start writing the serialized_dict
@@ -137,12 +139,18 @@ class VELOCCheckpointEngine(CheckpointEngine):
             # ==== This was being written separately.
             # self.ckpt_engine.ckpt_pickle(version, SIZE_UINT64, SIZE_UINT64+len(header_size), headers, path)
 
-            combined_header = headers + serialized_dict
-            self.ckpt_engine.ckpt_pickle(version, SIZE_UINT64, SIZE_UINT64+len(header_size)+len(serialized_dict), combined_header, path)
+            # combined_header = headers + serialized_dict
+            # self.ckpt_engine.ckpt_pickle(version, SIZE_UINT64, SIZE_UINT64+len(header_size)+len(serialized_dict), combined_header, path)
 
-            # sys.stdout = redirect._stdout
+            sys.stdout = redirect._stdout
             # logger.info(f"[VELOC] Version {version} in {time.time()-start_time}, path {path}")
-            logger.info(f"[VELOC] In background meta-data thread saved {path} in time {time.time()-start_time}")
+            with open(path, 'ab+') as file:
+                file.seek(0)
+                file.write(str(len(headers)).encode("utf-8"))
+                file.write(headers)
+                file.write(serialized_dict)
+
+            # logger.info(f"[VELOC] In background meta-data thread saved {path} in time {time.time()-start_time}")
             return None
         except Exception as exc:
             logger.info(f"[VELOC][ERROR] From VELOC save_background, generated exception: {exc}")
@@ -150,9 +158,9 @@ class VELOCCheckpointEngine(CheckpointEngine):
 
     def save(self, state_dict, path: str):
         try:
-            start_time = time.time()
+            # start_time = time.time()
             self.executor.submit(self.save_background, state_dict, path)
-            logger.info(f"[VELOC] Saved {path}. in time {time.time()-start_time}")
+            # logger.info(f"[VELOC] Saved {path}. in time {time.time()-start_time}")
             return True
         except Exception as exc:
             logger.info(f"[VELOC][ERROR] From save, generated exception: {exc}")

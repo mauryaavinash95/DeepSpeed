@@ -14,6 +14,9 @@ void veloc_ckpt_t::_d2h_trf() {
                 // DBG("==== Returning from d2h_trf");
                 return;
             }
+            // TIMER_START(sl_time);
+            // std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            // TIMER_STOP(sl_time, "Time for which it is sleeping ", 10);
             TIMER_START(d2h_time);
             auto e = _pending_d2h.front();
             _lock_d2h.unlock();
@@ -25,22 +28,44 @@ void veloc_ckpt_t::_d2h_trf() {
             torch::Tensor t = std::get<3>(e);
             size_t size = std::get<4>(e);
             size_t file_offset = std::get<5>(e);
+            uint64_t enqueued_time = std::get<6>(e);
+            DBG("[D2H][" << _gpu_id << "] transfer of tensor " << uid << " version " << version << " delta " << get_current_ts()-enqueued_time 
+            << " enqueued at " << enqueued_time << " started at " << get_current_ts());
             mem_region_t* m = mem->allocate(uid, size);
-            char *ptr = m->ptr;
-            TIMER_STOP(d2h_time, "[D2H] Allocation time for " << m->uid << " version " << version, size);
+            char *host_ptr = m->ptr;
+            char *src_ptr = static_cast<char *>(t.data_ptr());
+            TIMER_STOP(d2h_time, "[D2H][" << _gpu_id << "] Allocation time for " << m->uid << " version " << version, size);
             TIMER_START(memcpy_time);
-            checkCuda(cudaMemcpyAsync(ptr, t.data_ptr(), size, cudaMemcpyDeviceToHost, _cpy_stream));
+
+            checkCuda(cudaMemcpyAsync(host_ptr, src_ptr, size, cudaMemcpyDeviceToHost, _cpy_stream));
             checkCuda(cudaStreamSynchronize(_cpy_stream));
-            TIMER_STOP(memcpy_time, "[D2H] D2H Memcpy time for " << m->uid << " version " << version, size);
+
+            /*
+            size_t rem = size;
+            size_t D2H_CHUNK_SIZE = (32 << 20);
             
-            TIMER_START(blob_time);
-            torch::Tensor cpu_tensor = torch::from_blob(ptr, t.sizes(), t.dtype());
-            if ((void *)ptr != (void *)(cpu_tensor.data_ptr())) {
-                FATAL("In d2h trf offsets don't match for " << m->uid << " version " << version);
+            while(rem > 0) {
+                size_t chunkSize = D2H_CHUNK_SIZE < rem ? D2H_CHUNK_SIZE : rem;
+                size_t curr = size - rem;
+                TIMER_START(ctime);
+                checkCuda(cudaMemcpyAsync(host_ptr+curr, src_ptr+curr, chunkSize, cudaMemcpyDeviceToHost, _cpy_stream));
+                checkCuda(cudaStreamSynchronize(_cpy_stream));
+                TIMER_STOP(ctime, "[D2H][" << _gpu_id << "] D2H Part Memcpy time for " << m->uid << " version " << version << " rem " << rem << " out of " << size, size);
+                rem -= chunkSize;
             }
-            TIMER_STOP(blob_time, "[D2H] Time to convert from blob to tensor for " << m->uid << " version " << version, size);
+            
+            */
+            TIMER_STOP(memcpy_time, "[D2H][" << _gpu_id << "] D2H Memcpy time for " << m->uid << " version " << version, size);
+
+            // TIMER_START(blob_time);
+            // torch::Tensor cpu_tensor = torch::from_blob(ptr, t.sizes(), t.dtype());
+            // if ((void *)ptr != (void *)(cpu_tensor.data_ptr())) {
+            //     FATAL("In d2h trf offsets don't match for " << m->uid << " version " << version);
+            // }
+            // TIMER_STOP(blob_time, "[D2H] Time to convert from blob to tensor for " << m->uid << " version " << version, size);
             std::unique_lock<std::mutex> _lock_h2f(_mutex_h2f);
-            _pending_h2f.push_back(std::make_tuple(version, m->uid, path, cpu_tensor, size, file_offset));
+            // _pending_h2f.push_back(std::make_tuple(version, m->uid, path, cpu_tensor, size, file_offset, get_current_ts()));
+            _pending_h2f.push_back(std::make_tuple(version, m->uid, path, host_ptr, size, file_offset, get_current_ts()));
             _lock_h2f.unlock();
             _cv_h2f.notify_all();
 
@@ -48,7 +73,9 @@ void veloc_ckpt_t::_d2h_trf() {
             _pending_d2h.pop_front();
             _lock_d2h.unlock();
             _cv_d2h.notify_all();
-            TIMER_STOP(d2h_time, "[D2H] Total time for GPU to process " << m->uid << " version " << version, size);
+            TIMER_STOP(d2h_time, "[D2H][" << _gpu_id << "] Total time for GPU to process " << m->uid << " version " << version, size);
+            DBG("[D2H][" << _gpu_id << "] transfer of tensor " << uid  << " version " << version << " delta " << get_current_ts()-enqueued_time << " enqueued at " << enqueued_time << " completed at " << get_current_ts());
+            
         } catch (std::exception &e) {
             FATAL("Exception caught in d2h trf." << e.what());
             // DBG("==== Returning from d2h_trf");
@@ -76,8 +103,10 @@ void veloc_ckpt_t::_h2f_trf() {
     while (is_active) {
         try {
             std::unique_lock<std::mutex> _lock_h2f(_mutex_h2f);
+            TIMER_START(h2f_wait);
             while(_pending_h2f.empty() && is_active)
                 _cv_h2f.wait(_lock_h2f);
+            
             if (!is_active) {
                 // _pending_h2f.clear();
                 _lock_h2f.unlock();
@@ -93,56 +122,51 @@ void veloc_ckpt_t::_h2f_trf() {
             int version = std::get<0>(e);
             uint64_t uid = std::get<1>(e);
             std::string path = std::get<2>(e);
-            torch::Tensor t = std::get<3>(e);
+            // torch::Tensor t = std::get<3>(e);
+            char* ptr = std::get<3>(e);
             size_t size = std::get<4>(e);
             size_t file_offset = std::get<5>(e);
-            // DBG("[H2F] Beginning to H2F flush for version " << version << " uid " << uid);
-            char *ptr = static_cast<char *>(t.data_ptr());
-            int num_writer_threads = writer_threads;
-            size_t chunkSize = ceil(size / num_writer_threads);
-            if (chunkSize < MIN_CHUNK_SIZE) {
-                chunkSize = MIN_CHUNK_SIZE;
-                num_writer_threads = ceil(size/chunkSize);
-            }
-            std::vector<std::thread> write_threads(num_writer_threads);
-            for(int threadID=0; threadID<num_writer_threads; threadID++) {
-                size_t startIdx = threadID * chunkSize;
-                size_t endIdx = (threadID == num_writer_threads - 1) ? size : startIdx + chunkSize;
-                write_threads[threadID] = std::thread([&] { _write_file(ptr, path, startIdx, endIdx, file_offset, uid, version, threadID); });
-            }
+            uint64_t enqueued_time = std::get<6>(e);
+            if (size > (256<<20))
+                TIMER_STOP(h2f_wait, "[" << _gpu_id << "] Waiting in h2f transfer ", 10);
+            DBG("[H2F][" << _gpu_id << "] flush for tensor uid " << uid  << " version " << version << " delta " << get_current_ts()-enqueued_time << " enqueued at " << enqueued_time << " started at " << get_current_ts());
+            // char *ptr = static_cast<char *>(t.data_ptr());
 
-            for(int threadID=0; threadID<num_writer_threads; threadID++) { 
-                write_threads[threadID].join();
-            }
-            // #pragma omp parallel shared(file_offset, size, ptr, uid, version, chunkSize) num_threads(writer_threads)
-            // {
-            //     int threadID = omp_get_thread_num();
-            //     int numThreads = omp_get_num_threads();
-            //     if (numThreads != writer_threads) {
-            //         FATAL("====================== NUM THREADS FOUND AS " << numThreads);
-            //     }
-                
-                
+            // -------- Multi-thread working right
+            // int num_writer_threads = writer_threads;
+            // size_t chunkSize = ceil(size / num_writer_threads);
+            // if (chunkSize < MIN_CHUNK_SIZE) {
+            //     chunkSize = MIN_CHUNK_SIZE;
+            //     num_writer_threads = ceil(size/chunkSize);
             // }
-            // TIMER_STOP(h2f_time, "[H2F] Time to open file for " << uid << " version " << version, size);
-            // TIMER_START(tensor_save);
-            // s_stream.seekp(0);
-            // torch::save(t, s_stream);
-            // TIMER_STOP(tensor_save, "[H2F] Time to save as tensor " << uid << " version " << version, size);
-            // TIMER_START(file_save)
-            // f << s_stream.str();
-            // f.close();
-            // TIMER_STOP(file_save, "[H2F] Time from sstring to file " << uid << " version " << version, size);
-            // TIMER_START(tensor_dir_save);
-            // torch::save(t, std::string("/local/scratch/file-")+std::to_string(uid));
-            // TIMER_STOP(tensor_dir_save, "[H2F] Time to direct save " << uid << " version " << version, size);
+            // std::vector<std::thread> write_threads(num_writer_threads);
+            // for(int threadID=0; threadID<num_writer_threads; threadID++) {
+            //     size_t startIdx = threadID * chunkSize;
+            //     size_t endIdx = (threadID == num_writer_threads - 1) ? size : startIdx + chunkSize;
+            //     write_threads[threadID] = std::thread([&] { _write_file(ptr, path, startIdx, endIdx, file_offset, uid, version, threadID); });
+            // }
+            // for(int threadID=0; threadID<num_writer_threads; threadID++) { 
+            //     write_threads[threadID].join();
+            // }
+            // -------- Multi-thread working right
             
+            // -------- Single thread working right
+            std::ofstream f;            
+            f.exceptions(std::ofstream::failbit | std::ofstream::badbit);
+            f.open(path,  std::ofstream::out | std::ofstream::binary | std::ofstream::app);
+            f.seekp(file_offset);
+            // f.write(static_cast<char *>(t.data_ptr()), (t.numel()*t.element_size()));
+            f.write(ptr, size);
+            f.close();
+            // -------- Single thread working right
+
             mem->deallocate(uid, size);
             _lock_h2f.lock();
             _pending_h2f.pop_front();
             _lock_h2f.unlock();
             _cv_h2f.notify_all();
-            TIMER_STOP(h2f_time, "[H2F] Total time in h2f to save tensor " << uid << " version " << version, size);
+            TIMER_STOP(h2f_time, "[H2F][" << _gpu_id << "] Total time in h2f to save tensor " << uid << " version " << version << " of size " << size, size);
+            DBG("[H2F][" << _gpu_id << "] flush for tensor uid " << uid  << " version " << version << " delta " << get_current_ts()-enqueued_time << " enqueued at " << enqueued_time << " completed at " << get_current_ts());
         }  catch (std::exception &e) {
             FATAL("Exception caught in h2f trf." << e.what());
             // DBG("==== Returning from h2f_trf");
@@ -277,14 +301,16 @@ void veloc_ckpt_t::ckpt_tensor(int version, const std::uint64_t start_offset, co
             assert((t.device().index() == _gpu_id) && "Tensor not on the same GPU as ckpt engine");
         uint64_t uid = local_uid++;
         if (t.device().is_cuda()) {
+            DBG("[" << _gpu_id << "] Enqueuing GPU tensor " << uid << " version  " << version << " size " << size);
             std::unique_lock<std::mutex> _lock_d2h(_mutex_d2h);
-            _pending_d2h.push_back(std::make_tuple(version, uid, path, t, size, file_offset));
+            _pending_d2h.push_back(std::make_tuple(version, uid, path, t, size, file_offset, get_current_ts()));
             _lock_d2h.unlock();
             _cv_d2h.notify_all();
             return;
         } 
+        DBG("[" << _gpu_id << "] Enqueuing host tensor " << uid << " version  " << version << " size " << size);
         std::unique_lock<std::mutex> _lock_h2f(_mutex_h2f);
-        _pending_h2f.push_back(std::make_tuple(version, uid, path, t, size, file_offset));
+        _pending_h2f.push_back(std::make_tuple(version, uid, path, static_cast<char *>(t.data_ptr()), size, file_offset, get_current_ts()));
         _lock_h2f.unlock();
         _cv_h2f.notify_all();
         return;
@@ -300,15 +326,15 @@ void veloc_ckpt_t::wait(int version) {
         TIMER_START(wait_timer);
         std::unique_lock<std::mutex> _lock_d2h(_mutex_d2h);
         while(!(_pending_d2h.empty())) {
-            DBG("Waiting in d2h for " << _pending_d2h.size());
+            DBG("[" << _gpu_id << "] Waiting in d2h for " << _pending_d2h.size());
             for(auto e: _pending_d2h) {
-                DBG(std::get<0>(e) << " UID " << std::get<1>(e) << " size " << std::get<4>(e));
+                DBG("[" << _gpu_id << "]" << std::get<0>(e) << " UID " << std::get<1>(e) << " size " << std::get<4>(e));
             }
             _cv_d2h.wait(_lock_d2h);
         }
         _lock_d2h.unlock();
         _cv_d2h.notify_all();
-        TIMER_STOP(wait_timer, "Wait D2H complete ", 1);
+        TIMER_STOP(wait_timer, "[" << _gpu_id << "] Wait D2H complete ", 1);
     }  catch (std::exception &e) {
         FATAL("Exception caught in wait D2H." << e.what());
     } catch (...) {
@@ -322,9 +348,9 @@ void veloc_ckpt_t::shutdown() {
         std::unique_lock<std::mutex> _lock_h2f(_mutex_h2f);
         // Wait for D2H transfers
         while((!_pending_h2f.empty())) {
-            DBG("Waiting in h2f for " << _pending_h2f.size());
+            DBG("[" << _gpu_id << "] Waiting in h2f for " << _pending_h2f.size());
             for(auto e: _pending_h2f) {
-                DBG(std::get<0>(e) << " UID " << std::get<1>(e) << " size " << std::get<4>(e));
+                DBG("[" << _gpu_id << "]" << std::get<0>(e) << " UID " << std::get<1>(e) << " size " << std::get<4>(e));
             }
             _cv_h2f.wait(_lock_h2f);
         }
@@ -334,9 +360,9 @@ void veloc_ckpt_t::shutdown() {
         std::unique_lock<std::mutex> _lock_p2f(_mutex_p2f);
         // Wait for D2H transfers
         while((!_pending_p2f.empty())) {
-            DBG("Waiting in p2f for " << _pending_p2f.size());
+            DBG("[" << _gpu_id << "] Waiting in p2f for " << _pending_p2f.size());
             for(auto e: _pending_p2f) {
-                DBG(std::get<0>(e) << " UID " << std::get<1>(e) << " size " << std::get<4>(e));
+                DBG("[" << _gpu_id << "] " << std::get<0>(e) << " UID " << std::get<1>(e) << " size " << std::get<4>(e));
             }
             _cv_p2f.wait(_lock_p2f);
         }
