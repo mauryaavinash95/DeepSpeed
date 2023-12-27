@@ -28,6 +28,7 @@ from deepspeed.utils import logger
 from deepspeed.runtime.utils import copy_to_device, move_to_device, see_memory_usage, bwc_tensor_model_parallel_rank
 from deepspeed.utils.timer import SynchronizedWallClockTimer as Timers, FORWARD_GLOBAL_TIMER
 from deepspeed.accelerator import get_accelerator
+import time
 
 # DeepSpeed Checkpointing Enabled or Disabled
 deepspeed_checkpointing_enabled = False
@@ -487,7 +488,9 @@ class CheckpointFunction(torch.autograd.Function):
 
     @staticmethod
     def forward(ctx, run_function, all_outputs, *args):
+        start_t = time.time()
         global mpu, timers, SYNCHRONIZE, PROFILE_TIME
+        my_rank = dist.get_rank()
 
         def save_args_for_backward(*all_args):
             tensor_args, non_tensor_args, tensor_flags = extract_tensors(all_objects=all_args)
@@ -503,6 +506,8 @@ class CheckpointFunction(torch.autograd.Function):
 
         if PROFILE_TIME:
             timers(FORWARD_GLOBAL_TIMER).start()
+        if my_rank == 0:
+            print(f":::::----------> Stage-1 {time.time()-start_t}")
 
         ctx.run_function = run_function
         global num_layers
@@ -543,21 +548,34 @@ class CheckpointFunction(torch.autograd.Function):
             inputs = partition_activations(args, CPU_CHECKPOINT, CONTIGUOUS_CHECKPOINTING)
         elif CPU_CHECKPOINT:
             inputs = copy_to_device(args, device=torch.device('cpu'), criterion_func=is_activation_to_checkpoint)
+        if my_rank == 0:
+            print(f":::::----------> Stage-2 {time.time()-start_t}")
+
 
         # just in case something funky is happening such as reuse of inputs
         inputs_cuda = copy_to_device(args, device=cuda_device, criterion_func=is_activation_to_checkpoint)
+        if my_rank == 0:
+            print(f":::::----------> Stage-3 {time.time()-start_t}")
 
         # Copy the rng states.
         ctx.fwd_cpu_rng_state = torch.get_rng_state()
         ctx.fwd_cuda_rng_state = get_accelerator().get_rng_state()
         ctx.fwd_cuda_rng_state_tracker = get_cuda_rng_tracker().get_states()
 
+        if my_rank == 0:
+            print(f":::::----------> Stage-4 {time.time()-start_t}")
         see_memory_usage("Before running forward on the layer", force=False)
+        if my_rank == 0:
+            print(f":::::----------> Stage-5 {time.time()-start_t}")
         # ctx.save_for_backward(*args)
         with torch.no_grad():
+            # import pdb; pdb.set_trace()
             outputs = run_function(*inputs_cuda)
-
+        if my_rank == 0:
+            print(f":::::----------> Stage-6 {time.time()-start_t}")
         see_memory_usage("After running forward on the layer", force=False)
+        if my_rank == 0:
+            print(f":::::----------> Stage-7 {time.time()-start_t}")
         del inputs_cuda
 
         if PARTITION_ACTIVATIONS:
@@ -569,6 +587,8 @@ class CheckpointFunction(torch.autograd.Function):
             save_args_for_backward(*new_args)
         else:
             save_args_for_backward(*args)
+        if my_rank == 0:
+            print(f":::::----------> Stage-8 {time.time()-start_t}")
 
         if PROFILE_TIME:
             timers(FORWARD_GLOBAL_TIMER).stop()
@@ -582,7 +602,8 @@ class CheckpointFunction(torch.autograd.Function):
         else:
             non_grad_outputs = [o for o in outputs if torch.is_tensor(o) and not o.is_floating_point()]
         ctx.mark_non_differentiable(*non_grad_outputs)
-
+        if my_rank == 0:
+            print(f"------------------> Stage-9 {time.time()-start_t}")
         if torch.is_tensor(outputs):
             all_outputs += [outputs]
             return outputs

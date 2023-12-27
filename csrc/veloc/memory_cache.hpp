@@ -29,17 +29,17 @@ inline void checkCudaFunc(cudaError_t code, const char *file, int line, bool abo
 
 
 static auto beginning = std::chrono::steady_clock::now();
-// #define TIMER_START(t) {}
-// #define TIMER_STOP(t, m, s) {}
-#define TIMER_START(timer) auto timer = std::chrono::steady_clock::now();
-#define TIMER_STOP(timer, message, size) {\
-    auto now = std::chrono::steady_clock::now();\
-    auto d = std::chrono::duration_cast<std::chrono::nanoseconds>(now - timer).count(); \
-    auto t = std::chrono::duration_cast<std::chrono::seconds>(now - beginning).count();\
-    std::cout << "[BENCHMARK " << t << "] [" << __FILE__ << ":" << __LINE__ << ":" \
-        << __FUNCTION__ << "] [time elapsed: " << d << " ns] " << message \
-        << " [THRU: " << (double)((double)size/(double)d) << "]" << std::endl; \
-}
+#define TIMER_START(t) {}
+#define TIMER_STOP(t, m, s) {}
+// #define TIMER_START(timer) auto timer = std::chrono::steady_clock::now();
+// #define TIMER_STOP(timer, message, size) {\
+//     auto now = std::chrono::steady_clock::now();\
+//     auto d = std::chrono::duration_cast<std::chrono::nanoseconds>(now - timer).count(); \
+//     auto t = std::chrono::duration_cast<std::chrono::seconds>(now - beginning).count();\
+//     std::cout << "[BENCHMARK " << t << "] [" << __FILE__ << ":" << __LINE__ << ":" \
+//         << __FUNCTION__ << "] [time elapsed: " << d << " ns] " << message \
+//         << " [THRU: " << (double)((double)size/(double)d) << "]" << std::endl; \
+// }
 
 // std::cout << "[" << level << " " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - beginning).count() << "] [" 
 #define MESSAGE(level, message) \
@@ -82,19 +82,13 @@ class memory_cache_t {
     bool is_active = true;
 public:
     memory_cache_t(int d, size_t t);
-
     ~memory_cache_t();
-
     void allocate_pin_mem();
     mem_region_t* _assign(const uint64_t uid, size_t h, size_t s);
-
     mem_region_t* allocate(const uint64_t uid, size_t s);
-
     void deallocate(uint64_t _uid, size_t s);
-
-    size_t size();
-
     void _print_trace();
+    void shutdown();
 };
 
 

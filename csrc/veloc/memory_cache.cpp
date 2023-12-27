@@ -5,7 +5,6 @@ memory_cache_t::memory_cache_t(int d, size_t t): _device_id(d), _total_memory(t)
         is_active = true;
         max_allocated = 0;
         malloc_thread = std::thread([&] { allocate_pin_mem(); });
-        // malloc_thread.detach();
         DBG("Returned from the memory cache function..... ");
     } catch (std::exception &e) {
         FATAL("Exception caught in memory cache constructor." << e.what());
@@ -21,6 +20,17 @@ memory_cache_t::~memory_cache_t() {
         checkCuda(cudaFreeHost(_start_ptr));
         malloc_thread.join();
         return;
+    } catch (std::exception &e) {
+        FATAL("Exception caught in memory cache destructor." << e.what());
+    } catch (...) {
+        FATAL("Unknown exception caught in memory cache destructor.");
+    }
+}
+
+void memory_cache_t::shutdown() {
+    try {
+        is_active = false;
+        _mem_cv.notify_all();
     } catch (std::exception &e) {
         FATAL("Exception caught in memory cache destructor." << e.what());
     } catch (...) {
@@ -138,8 +148,10 @@ mem_region_t* memory_cache_t::allocate(const uint64_t uid, size_t s) {
                 _mem_cv.wait(_mem_lock);
                 TIMER_STOP(wait_time, "Waiting for more memory " << _tail - _head << " uid " << uid << " size " << s, 10);
             }
-            if (!is_active)
-                return ptr;
+            if (!is_active) {
+                DBG("Returning from allocate function.....");
+                return nullptr;
+            }
             ptr = _assign(uid, _head, s);
         }
         _mem_lock.unlock();
@@ -180,10 +192,6 @@ void memory_cache_t::deallocate(uint64_t _uid, size_t s) {
     } catch (...) {
         FATAL("Unknown exception caught in deallocate operation.");
     }
-}
-
-size_t memory_cache_t::size() {
-    return _curr_size;
 }
 
 void memory_cache_t::_print_trace() {

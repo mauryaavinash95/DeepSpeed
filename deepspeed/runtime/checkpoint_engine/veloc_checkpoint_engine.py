@@ -96,38 +96,23 @@ class VELOCCheckpointEngine(CheckpointEngine):
     # @instrument_w_nvtx
     def save_background(self, state_dict, path: str):
         try:
-            start_time = time.time()
             version = int(path.split("/")[-2].replace('global_step', ''))
             new_state_dict = {}
             async_copies_list = []
-            t_begin = time.time()
-            # if (self.rank == 0):
-            #     import pdb; pdb.set_trace();
             new_state_dict, async_copies_list = self._parse_dict(state_dict, new_state_dict, async_copies_list)
             serialized_dict = pickle.dumps(new_state_dict, protocol=pickle.HIGHEST_PROTOCOL)
-            # logger.info(f"[VELOC] Time to serialize {path}, {time.time()-t_begin}, {len(serialized_dict)}")
-            
-            t_begin = time.time()
             headers = np.zeros((len(async_copies_list)+1, 2), dtype=np.uint64) #[(ctypes.c_uint64(0), ctypes.c_uint64(0))]*(len(async_copies_list)+1)
             header_size = pickle.dumps(headers, protocol=pickle.HIGHEST_PROTOCOL)
-            
-
+    
             file_offset = SIZE_UINT64        # Count the number of bytes require to write header_size in bytes
             file_offset += len(header_size)                     # Add the serialized header_size
             
             headers[0] = (file_offset, file_offset+len(serialized_dict))
             file_offset += len(serialized_dict)                 # Add offset for writing the serial-dict
-            
-            # self.ckpt_engine.ckpt_header_size(0, ctypes.sizeof(ctypes.c_uint64), header_size, path) # Write size of header list
-            # self.ckpt_engine.ckpt_header_size(version, 0, SIZE_UINT64, len(headers), path) # Write size of header list
-            # After this we should be writing headers, but we do not have file offsets yet.
-            # === This was being written separately.
-            # self.ckpt_engine.ckpt_pickle(version, headers[0][0], headers[0][1], serialized_dict, path)  # Start writing the serialized_dict
-            # logger.info(f"[VELOC] Time to write header size and serialized dict, {version}, {time.time()-t_begin}, {path}")
-            
+
             for i, t in enumerate(async_copies_list):
-                t[3] = file_offset      # v[3] represents the file_write_offset
-                file_offset += t[1]     # v[1] represents the size of the object
+                t[3] = file_offset  
+                file_offset += t[1] 
                 headers[i+1] = ((t[3], file_offset))
                 if (torch.is_tensor(t[0])):
                     self.ckpt_engine.ckpt_tensor(version, headers[i+1][0], headers[i+1][1], t[0], t[1], t[2], t[3], path)
@@ -135,15 +120,8 @@ class VELOCCheckpointEngine(CheckpointEngine):
                     self.ckpt_engine.ckpt_obj(version, headers[i+1][0], headers[i+1][1], t[0], t[1], t[2], t[3], path)
             
             headers = pickle.dumps(headers, protocol=pickle.HIGHEST_PROTOCOL)
-            # logger.info(f"[VELOC] Starting to write ckpt_pickle for header now for path {path}")
-            # ==== This was being written separately.
-            # self.ckpt_engine.ckpt_pickle(version, SIZE_UINT64, SIZE_UINT64+len(header_size), headers, path)
-
-            # combined_header = headers + serialized_dict
-            # self.ckpt_engine.ckpt_pickle(version, SIZE_UINT64, SIZE_UINT64+len(header_size)+len(serialized_dict), combined_header, path)
-
-            sys.stdout = redirect._stdout
-            # logger.info(f"[VELOC] Version {version} in {time.time()-start_time}, path {path}")
+            
+            
             with open(path, 'ab+') as file:
                 file.seek(0)
                 file.write(str(len(headers)).encode("utf-8"))
@@ -151,6 +129,7 @@ class VELOCCheckpointEngine(CheckpointEngine):
                 file.write(serialized_dict)
 
             # logger.info(f"[VELOC] In background meta-data thread saved {path} in time {time.time()-start_time}")
+            # sys.stdout = redirect._stdout
             return None
         except Exception as exc:
             logger.info(f"[VELOC][ERROR] From VELOC save_background, generated exception: {exc}")
@@ -175,6 +154,7 @@ class VELOCCheckpointEngine(CheckpointEngine):
         return partition
 
     def commit(self, tag):
+        self.ckpt_engine.wait(-1)
         logger.info(f"[VELOC] Checkpoint {tag} is ready now!")
         return True
 

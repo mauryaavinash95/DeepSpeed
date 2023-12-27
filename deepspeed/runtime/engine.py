@@ -1826,9 +1826,13 @@ class DeepSpeedEngine(Module):
         if self.fp16_auto_cast():
             inputs = self._cast_inputs_half(inputs)
         # logger.info(f"Stage-4 in forward pass {time.time()-t}")
-        # t = time.time()
+        # if self.global_rank == 0:
+        #     import pdb; pdb.set_trace();
+        t = time.time()
         loss = self.module(*inputs, **kwargs)
-        # logger.info(f"Stage-5 in forward pass {time.time()-t}: {inputs}: {kwargs}|")
+
+        logger.info(f"Stage-5 in forward pass {time.time()-t}|")
+        # dist.barrier()
 
         # t = time.time()
         if self.zero_optimization_partition_weights():
@@ -3010,8 +3014,13 @@ class DeepSpeedEngine(Module):
 
     @timeit
     def save_checkpoint_terminate(self):
-        print(f"===================== Terminating now ============== {time.time_ns()}")
+        get_accelerator().synchronize()
+        dist.barrier()
+        print(f"===================== Terminating now ============== {time.time_ns()} [Rank {self.global_rank}]")
         self.checkpoint_engine.shutdown()
+        print(f"===================== Terminated ============== {time.time_ns()} [Rank {self.global_rank}]")
+        dist.barrier()
+
 
     @timeit
     def save_checkpoint(self, save_dir, tag=None, client_state={}, save_latest=True, exclude_frozen_parameters=False):
