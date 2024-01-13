@@ -31,16 +31,17 @@ void veloc_ckpt_t::_d2h_trf() {
             mem_region_t* m = mem->allocate(uid, size);
             char *host_ptr = m->ptr;
             char *src_ptr = static_cast<char *>(t.data_ptr());
-            // checkCuda(cudaMemcpyAsync(host_ptr, src_ptr, size, cudaMemcpyDeviceToHost, _cpy_stream));
-            // checkCuda(cudaStreamSynchronize(_cpy_stream));
-            /*
+           
+            
             // Previously working version with single-shot d2h transfer.
+            checkCuda(cudaMemcpyAsync(host_ptr, src_ptr, size, cudaMemcpyDeviceToHost, _cpy_stream));
+            checkCuda(cudaStreamSynchronize(_cpy_stream));
             std::unique_lock<std::mutex> _lock_h2f(_mutex_h2f);
-            _pending_h2f.push_back(std::make_tuple(version, m->uid, path, host_ptr, size, file_offset, get_current_ts(), true));
+            _pending_h2f.push_back(std::make_tuple(version, m->uid, path, host_ptr, size, file_offset, get_current_ts(), true, size));
             _lock_h2f.unlock();
             _cv_h2f.notify_all();
-            */
-
+            
+            /*
             size_t rem = size;
             size_t D2H_CHUNK_SIZE = (64 << 20);
             TIMER_START(memcpy_time);
@@ -53,11 +54,14 @@ void veloc_ckpt_t::_d2h_trf() {
                 TIMER_STOP(ctime, "[D2H][" << _gpu_id << "] D2H Part Memcpy time for " << m->uid << " version " << version << " rem " << rem << " out of " << size, size);
                 rem -= chunkSize;
                 std::unique_lock<std::mutex> _lock_h2f(_mutex_h2f);
-                _pending_h2f.push_back(std::make_tuple(version, m->uid, path, host_ptr+curr, chunkSize, file_offset+curr, get_current_ts(), rem==0 /*EOF?*/, size));
+                _pending_h2f.push_back(std::make_tuple(version, m->uid, path, host_ptr+curr, chunkSize, file_offset+curr, get_current_ts(), rem==0 //EOF?
+                , size));
                 _lock_h2f.unlock();
                 _cv_h2f.notify_all();
             }
             TIMER_STOP(memcpy_time, "[D2H][" << _gpu_id << "] D2H Memcpy time for " << m->uid << " version " << version, size);
+            */
+            
             
             _lock_d2h.lock();
             _pending_d2h.pop_front();
