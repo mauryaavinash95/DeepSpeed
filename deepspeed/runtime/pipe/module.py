@@ -316,19 +316,19 @@ class PipelineModule(nn.Module):
             raise RuntimeError(f"Partitioning '{layername}' found no valid layers to partition.")
         return idxs
 
-    @timeit
+    # @timeit
     def forward(self, forward_input):
         # We need to offset the seed by the microbatch ID. Save it in a local var to
         # ensure it is preserved in the closure. Otherwise checkpointed forward funcs
         # will see a different offset.
         self.micro_offset += 1
-        @timeit
+        # @timeit
         def exec_range_func(start, end):
             ''' Helper function to be used with checkpoint()
             Adapted from torch.utils.checkpoint:checkpoint_sequential()
             '''
             local_micro_offset = self.micro_offset + 1
-            @timeit
+            # @timeit
             def exec_func(*inputs):
                 # Single tensor inputs need to be unwrapped
                 if len(inputs) == 1:
@@ -562,7 +562,7 @@ class PipelineModule(nn.Module):
         ckpt_files.sort()
         return ckpt_files
 
-    @timeit
+    # @timeit
     def save_state_dict(self, save_dir, checkpoint_engine, exclude_frozen_params=False):
         # Processes having the same model parallel rank on different data parallel instances
         # have identical layer weights.  We can distribute the task of saving the layer weights

@@ -46,7 +46,7 @@ def _is_valid_send_recv(src_stage, dest_stage):
         (src_stage == last_stage and dest_stage == first_stage), \
     "Functionality currently limited to send and receive between adjacent ranks only"
 
-@timeit
+# @timeit
 def send(tensor, dest_stage, async_op=False):
     global _groups
     assert async_op == False, "Doesn't support async_op true"
@@ -67,7 +67,7 @@ def send(tensor, dest_stage, async_op=False):
             src_rank = _grid.stage_to_global(stage_id=src_stage)
             return dist.broadcast(tensor, src_rank, group=group, async_op=async_op)
 
-@timeit
+# @timeit
 def recv(tensor, src_stage, async_op=False):
     global _groups
     assert async_op == False, "Doesn't support async_op true"
@@ -87,7 +87,7 @@ def recv(tensor, src_stage, async_op=False):
             group = _get_send_recv_group(src_stage, dest_stage)
             return dist.broadcast(tensor, src_rank, group=group, async_op=async_op)
 
-@timeit
+# @timeit
 def wait():
     global _async
     for op in _async:
@@ -96,7 +96,7 @@ def wait():
 
     get_accelerator().synchronize()
 
-@timeit
+# @timeit
 def send_obj(msg: typing.Any, dest: int):
     """Send an arbitrary python object to ``dest``.
 
@@ -119,7 +119,7 @@ def send_obj(msg: typing.Any, dest: int):
     dist.send(length_tensor, dst=dest)
     dist.send(msg, dst=dest)
 
-@timeit
+# @timeit
 def recv_obj(sender: int) -> typing.Any:
     """Receive an arbitrary python object from ``sender``.
 
@@ -161,7 +161,7 @@ def recv_obj(sender: int) -> typing.Any:
     msg = _to(msg)
     return msg
 
-@timeit
+# @timeit
 def _get_send_recv_group(src_stage, dest_stage):
     '''the group id is always the smaller rank unless its a wrap around'''
 

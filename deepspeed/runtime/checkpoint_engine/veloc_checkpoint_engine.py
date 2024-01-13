@@ -41,7 +41,7 @@ class VELOCCheckpointEngine(CheckpointEngine):
 
     def __init__(self, config_params, r):
         try:
-            t = time.time()
+            # t = time.time()
             super().__init__(config_params, r)
             self.rank = r
             self.ckpt_engine = VelocCkptBuilder().load().veloc_ckpt_handle(
@@ -51,7 +51,7 @@ class VELOCCheckpointEngine(CheckpointEngine):
                     )
             self.futures = None
             self.executor = ThreadPoolExecutor(max_workers=int(config_params["writer_threads"]))
-            print(f"[VELOC] Init took {time.time()-t}")
+            # print(f"[VELOC] Init took {time.time()-t}")
         except Exception as exc2:
             print("[ERROR]Got exception during VELOC init ", exc2)
             sys.exit(-1)
@@ -154,7 +154,7 @@ class VELOCCheckpointEngine(CheckpointEngine):
         return partition
 
     def commit(self, tag):
-        self.ckpt_engine.wait(-1)
+        # self.ckpt_engine.wait(-1)
         logger.info(f"[VELOC] Checkpoint {tag} is ready now!")
         return True
 

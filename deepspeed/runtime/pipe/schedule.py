@@ -193,7 +193,7 @@ class TrainSchedule(PipeSchedule):
     convergence follows that of a data parallel approach with the same batch
     size.
     """
-    @timeit
+    # @timeit
     def steps(self):
         """"""
         prev_micro_batch_id = -1

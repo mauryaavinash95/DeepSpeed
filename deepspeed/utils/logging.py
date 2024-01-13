@@ -52,19 +52,20 @@ logger = LoggerFactory.create_logger(name="DeepSpeed", level=logging.INFO)
 
 
 def timeit(func):
-    from deepspeed import comm as dist
-    @functools.wraps(func)    
-    def timeit_wrapper(*args, **kwargs):
-        my_rank = dist.get_rank() if dist.is_initialized() else -1
-        start_time = time.perf_counter()
-        result = func(*args, **kwargs)
-        end_time = time.perf_counter()
-        total_time = end_time - start_time
-        # first item in the args, ie `args[0]` is `self`
-        res = "[Rank {}][FunctionTimer {}][Time {}]".format(my_rank, func.__name__, total_time)
-        logger.info(res)
-        return result
-    return timeit_wrapper
+    return func
+    # from deepspeed import comm as dist
+    # @functools.wraps(func)    
+    # def timeit_wrapper(*args, **kwargs):
+    #     my_rank = dist.get_rank() if dist.is_initialized() else -1
+    #     start_time = time.perf_counter()
+    #     result = func(*args, **kwargs)
+    #     end_time = time.perf_counter()
+    #     total_time = end_time - start_time
+    #     # first item in the args, ie `args[0]` is `self`
+    #     res = "[Rank {}][FunctionTimer {}][Time {}]".format(my_rank, func.__name__, total_time)
+    #     logger.info(res)
+    #     return result
+    # return timeit_wrapper
 
 @functools.lru_cache(None)
 def warning_once(*args, **kwargs):
