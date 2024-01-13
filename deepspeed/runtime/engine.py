@@ -1666,7 +1666,7 @@ class DeepSpeedEngine(Module):
         """
         return self._step_applied
 
-    @timeit
+    # @timeit
     def deepspeed_io(self,
                      dataset,
                      batch_size=None,
@@ -1759,7 +1759,7 @@ class DeepSpeedEngine(Module):
         return scaled_loss
 
     @instrument_w_nvtx
-    @timeit
+    # @timeit
     def forward(self, *inputs, **kwargs):
         r"""Execute forward propagation
         Arguments:
@@ -1828,10 +1828,10 @@ class DeepSpeedEngine(Module):
         # logger.info(f"Stage-4 in forward pass {time.time()-t}")
         # if self.global_rank == 0:
         #     import pdb; pdb.set_trace();
-        t = time.time()
+        # t = time.time()
         loss = self.module(*inputs, **kwargs)
 
-        logger.info(f"Stage-5 in forward pass {time.time()-t}|")
+        # logger.info(f"Stage-5 in forward pass {time.time()-t}|")
         # dist.barrier()
 
         # t = time.time()
@@ -1895,7 +1895,7 @@ class DeepSpeedEngine(Module):
             ranks=[0])
 
     @instrument_w_nvtx
-    @timeit
+    # @timeit
     def allreduce_gradients(self, bucket_size=MEMORY_OPT_ALLREDUCE_SIZE):
         assert not (self.bfloat16_enabled() and self.pipeline_parallelism), \
             f'allreduce_gradients() is not valid when bfloat+pipeline_parallelism is enabled'
@@ -1915,7 +1915,7 @@ class DeepSpeedEngine(Module):
                 self.buffered_allreduce_fallback(elements_per_buffer=bucket_size)
 
     @instrument_w_nvtx
-    @timeit
+    # @timeit
     def backward(self, loss, allreduce_gradients=True, release_loss=False, retain_graph=False, scale_wrt_gas=True):
         r"""Execute backward pass on the loss
         Arguments:
@@ -2048,7 +2048,7 @@ class DeepSpeedEngine(Module):
     def clip_fp32_gradients(self):
         clip_grad_norm_(parameters=self.module.parameters(), max_norm=self.gradient_clipping(), mpu=self.mpu)
 
-    @timeit
+    # @timeit
     def _take_model_step(self, lr_kwargs, block_eigenvalue={}):
         if self.gradient_clipping() > 0.0:
             if not (self.fp16_enabled() or self.bfloat16_enabled() or self.amp_enabled() or self.zero_optimization()):
@@ -2115,7 +2115,7 @@ class DeepSpeedEngine(Module):
         self.global_steps += 1
         self.global_samples += self.train_batch_size()
 
-    @timeit
+    # @timeit
     def step(self, lr_kwargs=None):
         r"""Execute the weight update step after forward and backward propagation
         on effective_train_batch.
@@ -2347,13 +2347,13 @@ class DeepSpeedEngine(Module):
 
         return tensor
 
-    @timeit
+    # @timeit
     def allreduce_and_copy(self, small_bucket, dp_group):
         allreduced = self.allreduce_bucket(small_bucket, dp_group)
         for buf, synced in zip(small_bucket, self.unflatten(allreduced, small_bucket)):
             buf.copy_(synced)
 
-    @timeit
+    # @timeit
     def allreduce_no_retain(self, bucket, dp_group, numel_per_bucket=500000000):
         small_bucket = []
         numel = 0
@@ -2398,7 +2398,7 @@ class DeepSpeedEngine(Module):
 
         return non_expert_grads, expert_grads
 
-    @timeit
+    # @timeit
     def _reduce_non_expert_gradients(self, grads, elements_per_buffer):
         split_buckets = split_half_float_double_sparse(grads)
         for _, bucket_tuple in enumerate(split_buckets):
@@ -2414,7 +2414,7 @@ class DeepSpeedEngine(Module):
             else:
                 self.allreduce_no_retain(bucket, dp_group=dp_group, numel_per_bucket=elements_per_buffer)
 
-    @timeit
+    # @timeit
     def _reduce_expert_gradients(self, expert_grads, elements_per_buffer):
         for ep_name, expert_grads_group in expert_grads.items():
             expert_split_buckets = split_half_float_double_sparse(expert_grads_group)
@@ -2428,7 +2428,7 @@ class DeepSpeedEngine(Module):
                                              dp_group=groups._get_expert_data_parallel_group(ep_name),
                                              numel_per_bucket=elements_per_buffer)
 
-    @timeit
+    # @timeit
     def buffered_allreduce_fallback(self, grads=None, elements_per_buffer=500000000):
         if grads is None:
             non_expert_grads, expert_grads = self._get_gradients_for_reduction()
@@ -2441,7 +2441,7 @@ class DeepSpeedEngine(Module):
         if self.has_moe_layers:
             self._reduce_expert_gradients(expert_grads, elements_per_buffer)
 
-    @timeit
+    # @timeit
     def sparse_allreduce_no_retain(self, bucket, dp_group):
         allreduced_sparses = self.sparse_allreduce_bucket(bucket, dp_group)
         # Densify sparse tensor and copy back to original location
@@ -2451,14 +2451,14 @@ class DeepSpeedEngine(Module):
             else:
                 tensor.orig_dense_tensor.copy_(tensor.to_dense())
 
-    @timeit
+    # @timeit
     def sparse_allreduce_bucket(self, bucket, dp_group):
         sparse_list = []
         for sparse in bucket:
             sparse_list.append(self.sparse_allreduce(sparse, dp_group))
         return sparse_list
 
-    @timeit
+    # @timeit
     def sparse_allreduce(self, sparse, dp_group):
         original_data_type = sparse.values.dtype
         if self.communication_data_type != sparse.values.dtype:
@@ -2484,7 +2484,7 @@ class DeepSpeedEngine(Module):
         sparse.values = torch.cat(values_device_list).to(original_data_type)
         return sparse
 
-    @timeit
+    # @timeit
     def sparse_all_gather(self, value, dp_group):
         my_size = torch.LongTensor([value.size()[0]]).to(self.device)
         all_sizes = self.all_gather_scalar(my_size, dp_group)
@@ -2512,7 +2512,7 @@ class DeepSpeedEngine(Module):
 
         return tensors
 
-    @timeit
+    # @timeit
     def all_gather_scalar(self, value, dp_group):
         tensor_list = [value.new_zeros(value.size()) for _ in range(dist.get_world_size(group=dp_group))]
         dist.all_gather(tensor_list, value, group=dp_group)
@@ -3012,7 +3012,7 @@ class DeepSpeedEngine(Module):
             elif not valid:
                 logger.warning(msg)
 
-    @timeit
+    # @timeit
     def save_checkpoint_terminate(self):
         get_accelerator().synchronize()
         dist.barrier()
@@ -3022,7 +3022,7 @@ class DeepSpeedEngine(Module):
         dist.barrier()
 
 
-    @timeit
+    # @timeit
     def save_checkpoint(self, save_dir, tag=None, client_state={}, save_latest=True, exclude_frozen_parameters=False):
         """Save training checkpoint
 
@@ -3427,7 +3427,7 @@ class DeepSpeedEngine(Module):
             logger.info(
                 f'Warning: Could not change permissions for {dst} due to error: {e}. Continuing without changing permissions.'
             )
-    @timeit
+    # @timeit
     def _save_zero_checkpoint(self, save_path, tag):
         t = time.time()
         zero_checkpoint_name = self._get_zero_ckpt_name(save_path, tag)
