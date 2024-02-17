@@ -1770,6 +1770,7 @@ class DeepSpeedEngine(Module):
         if self.autotuning_profile_model_info():
             ma = get_ma_status()
         else:
+            get_accelerator().empty_cache()
             see_memory_usage("Engine before forward", force=self.memory_breakdown())
 
         flops_profiler_active = (self.flops_profiler_enabled()
@@ -1926,6 +1927,7 @@ class DeepSpeedEngine(Module):
         """
 
         see_memory_usage("Engine before backward", force=self.memory_breakdown())
+        logger.info(f"<<<backward_start:{time.time_ns()}>>>")
 
         if self.scale_wrt_gas is not None:
             scale_wrt_gas = self.scale_wrt_gas
@@ -1995,7 +1997,7 @@ class DeepSpeedEngine(Module):
             pass
 
         see_memory_usage("Engine after backward", force=self.memory_breakdown())
-
+        logger.info(f"<<<backward_end:{time.time_ns()}>>>")
         return loss
 
     def is_gradient_accumulation_boundary(self):

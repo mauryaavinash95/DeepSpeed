@@ -11,7 +11,7 @@ import torch
 from deepspeed.utils.logging import logger
 from deepspeed.ops.op_builder import AsyncIOBuilder
 from deepspeed import comm as dist
-
+from deepspeed.utils import instrument_w_nvtx
 from deepspeed.runtime.swap_tensor.constants import *
 from deepspeed.runtime.swap_tensor.utils import swap_in_tensors, swap_out_tensors, print_object, \
     get_sized_buffers

@@ -23,6 +23,10 @@ class CPUAdamBuilder(TorchCPUOpBuilder):
 
         return ['csrc/adam/cpu_adam.cpp', 'csrc/adam/cpu_adam_impl.cpp', 'csrc/common/custom_cuda_kernel.cu']
 
+    def cxx_args(self):
+        args = super().cxx_args() + ['-fPIC']
+        return args + self.version_dependent_macros()
+    
     def libraries_args(self):
         args = super().libraries_args()
         if self.build_for_cpu:

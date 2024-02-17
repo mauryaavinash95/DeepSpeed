@@ -11,7 +11,7 @@ void veloc_ckpt_t::_d2h_trf() {
                 _pending_d2h.clear();
                 _lock_d2h.unlock();
                 _cv_d2h.notify_all();
-                DBG("---- Returning from d2h thread " << _gpu_id);
+                DBG("---- Returning from d2h thread " << _rank);
                 return;
             }
             TIMER_START(d2h_time);
@@ -26,7 +26,7 @@ void veloc_ckpt_t::_d2h_trf() {
             size_t size = std::get<4>(e);
             size_t file_offset = std::get<5>(e);
             uint64_t enqueued_time = std::get<6>(e);
-            DBG("[D2H][" << _gpu_id << "] transfer of tensor " << uid << " version " << version << " delta " << get_current_ts()-enqueued_time 
+            DBG("[D2H][" << _rank << "] transfer of tensor " << uid << " version " << version << " delta " << get_current_ts()-enqueued_time 
             << " enqueued at " << enqueued_time << " started at " << get_current_ts());
             mem_region_t* m = mem->allocate(uid, size);
             char *host_ptr = m->ptr;
@@ -67,8 +67,8 @@ void veloc_ckpt_t::_d2h_trf() {
             _pending_d2h.pop_front();
             _lock_d2h.unlock();
             _cv_d2h.notify_all();
-            TIMER_STOP(d2h_time, "[D2H][" << _gpu_id << "] Total time for GPU to process " << m->uid << " version " << version, size);
-            DBG("[D2H][" << _gpu_id << "] transfer of tensor " << uid  << " version " << version << " delta " << get_current_ts()-enqueued_time << " enqueued at " << enqueued_time << " completed at " << get_current_ts());
+            TIMER_STOP(d2h_time, "[D2H][" << _rank << "] Total time for GPU to process " << m->uid << " version " << version, size);
+            DBG("[D2H][" << _rank << "] transfer of tensor " << uid  << " version " << version << " delta " << get_current_ts()-enqueued_time << " enqueued at " << enqueued_time << " completed at " << get_current_ts());
         } catch (std::exception &e) {
             FATAL("Exception caught in d2h trf." << e.what());
         } catch (...) {
@@ -88,7 +88,7 @@ void veloc_ckpt_t::_h2f_trf() {
             if (!is_active) {
                 _lock_h2f.unlock();
                 _cv_h2f.notify_all();
-                DBG("---- Returning from h2f thread " << _gpu_id);
+                DBG("---- Returning from h2f thread " << _rank);
                 return;
             }
             TIMER_START(h2f_time);
@@ -105,7 +105,7 @@ void veloc_ckpt_t::_h2f_trf() {
             uint64_t enqueued_time = std::get<6>(e);
             bool eof = std::get<7>(e);
             size_t total_size = std::get<8>(e);
-            DBG("[H2F][" << _gpu_id << "] flush for tensor uid " << uid  << " version " << version << " delta " << get_current_ts()-enqueued_time << " enqueued at " << enqueued_time << " started at " << get_current_ts());
+            DBG("[H2F][" << _rank << "] flush for tensor uid " << uid  << " version " << version << " delta " << get_current_ts()-enqueued_time << " enqueued at " << enqueued_time << " started at " << get_current_ts());
 
 
             // -------- Multi-thread working right
@@ -160,8 +160,8 @@ void veloc_ckpt_t::_h2f_trf() {
             _pending_h2f.pop_front();
             _lock_h2f.unlock();
             _cv_h2f.notify_all();
-            TIMER_STOP(h2f_time, "[H2F][" << _gpu_id << "] Total time in h2f to save tensor " << uid << " version " << version << " of size " << size, size);
-            DBG("[H2F][" << _gpu_id << "] flush for tensor uid " << uid  << " version " << version << " delta " << get_current_ts()-enqueued_time << " enqueued at " << enqueued_time << " completed at " << get_current_ts());
+            TIMER_STOP(h2f_time, "[H2F][" << _rank << "] Total time in h2f to save tensor " << uid << " version " << version << " of size " << size, size);
+            DBG("[H2F][" << _rank << "] flush for tensor uid " << uid  << " version " << version << " delta " << get_current_ts()-enqueued_time << " enqueued at " << enqueued_time << " completed at " << get_current_ts());
         }  catch (std::exception &e) {
             FATAL("Exception caught in h2f trf." << e.what());
         } catch (...) {
@@ -197,14 +197,14 @@ void veloc_ckpt_t::ckpt_tensor(int version, const std::uint64_t start_offset, co
             assert((t.device().index() == _gpu_id) && "Tensor not on the same GPU as ckpt engine");
         uint64_t uid = local_uid++;
         if (t.device().is_cuda()) {
-            DBG("[" << _gpu_id << "] Enqueuing GPU tensor " << uid << " version  " << version << " size " << size);
+            DBG("[" << _rank << "] Enqueuing GPU tensor " << uid << " version  " << version << " size " << size);
             std::unique_lock<std::mutex> _lock_d2h(_mutex_d2h);
             _pending_d2h.push_back(std::make_tuple(version, uid, path, t, size, file_offset, get_current_ts()));
             _lock_d2h.unlock();
             _cv_d2h.notify_all();
             return;
         } 
-        DBG("[" << _gpu_id << "] Enqueuing host tensor " << uid << " version  " << version << " size " << size);
+        DBG("[" << _rank << "] Enqueuing host tensor " << uid << " version  " << version << " size " << size);
         std::unique_lock<std::mutex> _lock_h2f(_mutex_h2f);
         _pending_h2f.push_back(std::make_tuple(version, uid, path, static_cast<char *>(t.data_ptr()), size, file_offset, get_current_ts(), true, size));
         _lock_h2f.unlock();
@@ -222,15 +222,17 @@ void veloc_ckpt_t::wait(int version) {
         TIMER_START(wait_timer);
         std::unique_lock<std::mutex> _lock_d2h(_mutex_d2h);
         while(!(_pending_d2h.empty())) {
-            DBG("[" << _gpu_id << "] Waiting in d2h for " << _pending_d2h.size());
+            DBG("[" << _rank << "] Waiting in d2h for " << _pending_d2h.size());
             for(auto e: _pending_d2h) {
-                DBG("[" << _gpu_id << "]" << std::get<0>(e) << " UID " << std::get<1>(e) << " size " << std::get<4>(e));
+                DBG("[" << _rank << "] D2H_WAIT" << std::get<0>(e) << " UID " << std::get<1>(e) << " size " << std::get<4>(e));
             }
             _cv_d2h.wait(_lock_d2h);
         }
+        DBG("[" << _rank << "] Waiting complete in d2h now size " << _pending_d2h.size());
         _lock_d2h.unlock();
         _cv_d2h.notify_all();
-        TIMER_STOP(wait_timer, "[" << _gpu_id << "] Wait D2H complete ", 1);
+        
+        TIMER_STOP(wait_timer, "[" << _rank << "] Wait D2H complete ", 1);
     }  catch (std::exception &e) {
         FATAL("Exception caught in wait D2H." << e.what());
     } catch (...) {
@@ -240,13 +242,15 @@ void veloc_ckpt_t::wait(int version) {
 
 void veloc_ckpt_t::shutdown() {
     try {
+        DBG("[" << _rank << "]" << "VELOC shutdown starting");
         wait();
+        DBG("[" << _rank << "]" << "VELOC shutdown-wait done");
         std::unique_lock<std::mutex> _lock_h2f(_mutex_h2f);
         // Wait for D2H transfers
         while((!_pending_h2f.empty())) {
-            DBG("[" << _gpu_id << "] Waiting in h2f for " << _pending_h2f.size());
+            DBG("[" << _rank << "] Waiting in h2f for " << _pending_h2f.size());
             for(auto e: _pending_h2f) {
-                DBG("[" << _gpu_id << "]" << std::get<0>(e) << " UID " << std::get<1>(e) << " size " << std::get<4>(e));
+                DBG("[" << _rank << "]" << std::get<0>(e) << " UID " << std::get<1>(e) << " size " << std::get<4>(e));
             }
             _cv_h2f.wait(_lock_h2f);
         }
@@ -254,11 +258,15 @@ void veloc_ckpt_t::shutdown() {
         _cv_h2f.notify_all();
         
         is_active = false;
+        DBG("[" << _rank << "]" << "VELOC shutdown-file-write done");
         mem->shutdown();
+        DBG("[" << _rank << "]" << "VELOC shutdown-mem done");
         _cv_h2f.notify_all();
         _cv_d2h.notify_all();
         _thread_d2h.join();
+        DBG("[" << _rank << "]" << "VELOC shutdown-d2h thread done");
         _thread_h2f.join();
+        DBG("[" << _rank << "]" << "VELOC shutdown-h2f thread done");
         return;
     } catch (std::exception &e) {
         FATAL("Exception caught in shutdown." << e.what());

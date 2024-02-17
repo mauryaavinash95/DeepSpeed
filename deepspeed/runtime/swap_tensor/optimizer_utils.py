@@ -11,6 +11,7 @@ import torch
 
 from deepspeed import comm as dist
 from deepspeed.utils.logging import logger
+from deepspeed.utils import instrument_w_nvtx
 from deepspeed.runtime.swap_tensor.constants import *
 from deepspeed.runtime.swap_tensor.utils import swap_in_tensors, swap_out_tensors, \
     MIN_AIO_BYTES, AIO_ALIGNED_BYTES, get_sized_buffers
@@ -106,7 +107,7 @@ class OptimizerStateSwapInfo(object):
         self.unswapped_gradients = {}
 
 
-SWAPPER_DEBUG_MODE = False
+SWAPPER_DEBUG_MODE = True
 SWAP_OUT_GRADIENT_TIMER = 'swap_out_gradient'
 
 
@@ -177,6 +178,7 @@ class OptimizerSwapper(object):
             self.timer_names.add(SWAP_OUT_GRADIENT_TIMER)
             self.timer_names.update(gradient_swapper.get_timer_names())
 
+    @instrument_w_nvtx
     def _swap_out_gradients(self, parameter, gradient_offsets, gradient_tensors, gradient_swapper):
         if not id(parameter) in self.swap_params_info.keys():
             return

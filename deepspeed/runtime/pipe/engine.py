@@ -1354,15 +1354,16 @@ class PipelineEngine(DeepSpeedEngine):
         self._reserve_pipe_buffers(pipe_schedule.num_pipe_buffers())
         self.fwd_outputs = []
 
-        t = time.time()
-        print(f"[Rank {self.global_rank}] waiting for checkpoint completion")
-        self.checkpoint_engine.wait()
-        print(f"[Rank {self.global_rank}] Time to wait before ckpt completion: {time.time()-t}")
+        # t = time.time()
+        # print(f"[Rank {self.global_rank}] waiting for checkpoint completion")
+        # self.checkpoint_engine.wait()
+        # print(f"[Rank {self.global_rank}] Time to wait before ckpt completion: {time.time()-t}")
 
         # For each step in the schedule
         for step_cmds in pipe_schedule:
             # For each instruction in the step
             for cmd in step_cmds:
+                ts = time.time()
                 if type(cmd) not in self._INSTRUCTION_MAP:
                     raise RuntimeError(f'{self.__class__.__name__} does not understand instruction {repr(cmd)}')
                 
@@ -1379,7 +1380,7 @@ class PipelineEngine(DeepSpeedEngine):
                 # Equivalent to: self._exec_forward_pass(buffer_id=0)
                 self._exec_instr = MethodType(self._INSTRUCTION_MAP[type(cmd)], self)
                 self._exec_instr(**cmd.kwargs)
-
+                print(f"[Rank {self.global_rank}] <<<{str(type(cmd))}:{time.time()-ts}>>>")
 
                 # if type(cmd) == schedule.OptimizerStep:
                 #     print("In after optimizer step")

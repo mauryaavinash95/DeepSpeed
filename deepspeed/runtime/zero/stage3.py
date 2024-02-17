@@ -26,7 +26,7 @@ from deepspeed.runtime.swap_tensor.partitioned_optimizer_swapper import Partitio
 from deepspeed.runtime.swap_tensor.pipelined_optimizer_swapper import PipelinedOptimizerSwapper
 from deepspeed.checkpoint.constants import OPTIMIZER_STATE_DICT, FP32_FLAT_GROUPS, PARTITION_COUNT, ZERO_STAGE
 from deepspeed.accelerator import get_accelerator
-
+import time
 # Toggle this to true to enable correctness test
 # with gradient partitioning and without
 pg_correctness_test = False
@@ -881,6 +881,7 @@ class DeepSpeedZeroOptimizer_Stage3(ZeROOptimizer):
         if self.contiguous_gradients:
             self.ipg_buffer = None
 
+    @instrument_w_nvtx
     def _optimizer_step(self, sub_group_id):
         param_group_id = self.sub_group_to_group_id[sub_group_id]
         fp32_param = self.fp32_partitioned_groups_flat[sub_group_id]
@@ -895,7 +896,7 @@ class DeepSpeedZeroOptimizer_Stage3(ZeROOptimizer):
 
         return self.optimizer_swapper.swappable_tensor(None,
                                                        numel=self.fp16_partitioned_groups_flat_numel[sub_group_id])
-
+    @instrument_w_nvtx
     def _partitioned_params_swap_out(self, i):
         offset = 0
         fp32_param = self.fp32_partitioned_groups_flat[i]
@@ -1049,6 +1050,7 @@ class DeepSpeedZeroOptimizer_Stage3(ZeROOptimizer):
         # TODO. make this less error prone
         self.micro_step_id += 1
 
+    @instrument_w_nvtx
     def overlapping_partition_gradients_reduce_epilogue(self):
         self.independent_gradient_partition_epilogue()
 
@@ -1300,34 +1302,52 @@ class DeepSpeedZeroOptimizer_Stage3(ZeROOptimizer):
         offload_fp32_gradients = {}
         offload_fp32_offsets = {}
         buffers = []
-        for param, grad_partition in zip(params_to_release, grad_partitions):
-
+        import time
+        loop_time = time.time()
+        for iter_number, (param, grad_partition) in enumerate(zip(params_to_release, grad_partitions)):
+            logger.info(f"=============== Running loop for {iter_number} containing {grad_partition.numel()*grad_partition.element_size()} residing on {grad_partition.device}")
             contains_real_data = param.partition_numel() * dist.get_rank(self.dp_process_group) < param.ds_numel
             if not contains_real_data:
                 # this grad partition is empty - don't need to do anything
                 param.grad = None
                 continue
-
+            
+            move_grad_buff_time = time.time()
             # move or accumulate gradient partition to target buffer
             grad_buffer = self.__param_id_to_grad_partition[param.ds_id].narrow(0, 0, grad_partition.numel())
+            logger.info(f"======= Microstep_id: {self.micro_step_id}, Param ID: {param.ds_id}, Grad buffer resident on {grad_buffer.device}")
             buffers.append(grad_buffer)
             if self.micro_step_id == 0:  # don't accumulate
-                grad_buffer.copy_(grad_partition, non_blocking=True)
+                # add_time = time.time()
+                
+                # logger.info(f"======= In if (microstep=0) (copy_) (grad_buf on {grad_buffer.device}) (grad_part on {grad_partition.device}) is {time.time()-add_time}")    
                 # ensure grad buffer is a CUDA buffer to speed up the next few
                 # operations and so it can be used asynchronously
+                add_time = time.time()
                 grad_buffer = grad_buffer.to(grad_partition.device, non_blocking=True)
+                grad_buffer.copy_(grad_partition, non_blocking=True)
+                logger.info(f"======= In if (microstep=0) (to) is {time.time()-add_time}")    
             elif get_accelerator().on_accelerator(grad_buffer):
+                add_time = time.time()
                 grad_buffer.add_(grad_partition.to(self.gradient_accumulation_dtype).view(grad_buffer.shape))
+                logger.info(f"======= In elif (grad_buff on accel) {time.time()-add_time}")    
             else:
                 # if dst is CPU, copy first to src device, do the addition
                 # there, then move back to dst. adding directly to cpu is very slow
+                # cuda_grad_buffer = grad_buffer.to(grad_partition.device, non_blocking=True)
+                add_time = time.time()
                 cuda_grad_buffer = grad_buffer.to(grad_partition.device, non_blocking=True)
+                logger.info(f"======= In else (grad_buff to {grad_partition.device}): {time.time()-add_time}")    
                 cuda_grad_buffer.add_(grad_partition.to(self.gradient_accumulation_dtype).view(cuda_grad_buffer.shape))
+                logger.info(f"======= In else (add_) {time.time()-add_time}")    
                 grad_buffer.copy_(cuda_grad_buffer, non_blocking=True)
+                logger.info(f"======= In else (copy_) {time.time()-add_time}")
                 # ensure grad buffer is a CUDA buffer to speed up the next few
                 # operations and so it can be used asynchronously
                 grad_buffer = cuda_grad_buffer
+            logger.info(f"==== Move_grad_buff_time is {time.time()-move_grad_buff_time}")
 
+            offload_grad_part_time = time.time()
             # offload the gradient partition if applicable
             if self.offload_optimizer:
                 i, dest_offset, _ = self.grad_position[self.get_param_id(param)]
@@ -1348,17 +1368,24 @@ class DeepSpeedZeroOptimizer_Stage3(ZeROOptimizer):
                         fp32_grad_tensor = self.fp32_partitioned_groups_flat[i].grad.narrow(
                             0, dest_offset, grad_buffer.numel())
                         fp32_grad_tensor.copy_(grad_buffer)
+                        # logger.info(f"=========== fp32_grad_tensor is on {fp32_grad_tensor.device}")
+            logger.info(f"==== Offload_grad_part_time is {time.time()-offload_grad_part_time}")
 
             # free the gradient
             if not get_accelerator().is_synchronized_device():
                 param.grad.record_stream(get_accelerator().current_stream())
             param.grad = None
+            # logger.info(f"==== offload_grad_part_time is+free_grad_time {time.time()-offload_grad_part_time}")
 
+        logger.info(f"==== Total loop time is {time.time()-loop_time}")
+        
+        t = time.time()
         if self.offload_optimizer and self.swap_optimizer:
             for i in offload_fp32_gradients.keys():
                 self.optimizer_swapper.swap_out_gradients(parameter=self.fp32_partitioned_groups_flat[i],
                                                           gradient_offsets=offload_fp32_offsets[i],
                                                           gradient_tensors=offload_fp32_gradients[i])
+        logger.info(f"==== Time in partition_grads for optimizer_swapper.swap_out_gradients is {time.time()-t}")
         return buffers
 
     def reduce_ready_partitions_and_remove_grads(self, param, i):
@@ -1821,6 +1848,7 @@ class DeepSpeedZeroOptimizer_Stage3(ZeROOptimizer):
         # get rid of the fp32 gradients. Not needed anymore
         self.fp32_partitioned_groups_flat[sub_group_id].grad = None
 
+    @instrument_w_nvtx
     def _unflatten_partitioned_parameters(self, sub_group_id):
         updated_params = self.unflatten(self.fp16_partitioned_groups_flat[sub_group_id],
                                         self.fp16_partitioned_groups[sub_group_id])

@@ -80,8 +80,9 @@ class memory_cache_t {
     std::thread malloc_thread;
     size_t max_allocated = 0;
     bool is_active = true;
+    int _rank = -1;
 public:
-    memory_cache_t(int d, size_t t);
+    memory_cache_t(int d, size_t t, int rank);
     ~memory_cache_t();
     void allocate_pin_mem();
     mem_region_t* _assign(const uint64_t uid, size_t h, size_t s);

@@ -17,11 +17,13 @@ AIO_ALIGNED_BYTES = 1024
 
 
 def swap_in_tensors(swap_handle, tensor_buffers, swap_paths):
+    logger.info(f"[UTILS] Swapping in tensor {len(tensor_buffers)}")
     for buffer, path in zip(tensor_buffers, swap_paths):
         assert (swap_handle.async_pread(buffer, path) == 0)
 
 
 def swap_out_tensors(swap_handle, tensor_buffers, swap_paths):
+    logger.info(f"[UTILS] Swapping out tensor {len(tensor_buffers)}")
     for buffer, path in zip(tensor_buffers, swap_paths):
         assert (swap_handle.async_pwrite(buffer, path) == 0)
 
@@ -48,11 +50,13 @@ class SwapBuffer(object):
         self.num_elem = 0
 
     def insert_tensor(self, tensor, swap_path, aligned_numel):
+        logger.info(f"[UTILS] SwapBuffer insert_tensor {aligned_numel}")
         swap_tensor, compute_tensor = self.allocate_tensor(swap_path, tensor.numel(), aligned_numel)
         compute_tensor.data.copy_(tensor.data)
         return swap_tensor, compute_tensor
 
     def allocate_tensor(self, swap_path, numel, aligned_numel):
+        logger.info(f"[UTILS] SwapBuffer insert_tensor {aligned_numel}")
         assert self.has_space(aligned_numel)
         assert not self.offset in self.swap_tensors
 
@@ -106,6 +110,7 @@ class SwapBufferPool(object):
             buffer.reset()
 
     def allocate_tensor(self, numel, swap_path, aligned_numel):
+        logger.info(f"[UTILS] SwapBufferPool allocate_tensor {aligned_numel}")
         if self.has_space(aligned_numel):
             swap_tensor, compute_tensor = self._get_current_buffer().allocate_tensor(swap_path, numel, aligned_numel)
             return swap_tensor, compute_tensor
@@ -113,6 +118,7 @@ class SwapBufferPool(object):
         return None, None
 
     def insert_tensor(self, tensor, swap_path, aligned_numel):
+        logger.info(f"[UTILS] SwapBufferPool insert_tensor {aligned_numel}")
         if self.has_space(aligned_numel):
             swap_tensor, compute_tensor = self._get_current_buffer().insert_tensor(tensor, swap_path, aligned_numel)
             return swap_tensor, compute_tensor
@@ -151,6 +157,7 @@ class SwapBufferPool(object):
         return self._get_current_buffer().has_space(numel)
 
     def swap_out(self, aio_handle, async_op=False):
+        logger.info(f"[UTILS] SwapBufferPool swap_out")
         swap_tensors = self.get_swap_tensors()
         swap_paths = self.get_swap_paths()
         assert all([p is not None for p in swap_paths])
@@ -161,6 +168,7 @@ class SwapBufferPool(object):
             assert len(swap_tensors) == aio_handle.wait()
 
     def swap_in(self, aio_handle, async_op=False):
+        logger.info(f"[UTILS] SwapBufferPool swap_in")
         swap_tensors = self.get_swap_tensors()
         swap_paths = self.get_swap_paths()
         assert all([p is not None for p in swap_paths])
@@ -196,6 +204,7 @@ class SwapBufferManager(object):
             print_object(obj=self, name='SwapBufferManager', exclude_list=exclude_list)
 
     def allocate(self, num_elems, count, dtype):
+        logger.info(f"[UTILS] SwapBufferManager allocate")
         assert dtype == self.dtype
         assert num_elems <= self.num_elems
         if count > len(self.free_buffer_index):

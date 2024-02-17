@@ -1,6 +1,6 @@
 #include "memory_cache.hpp"
 
-memory_cache_t::memory_cache_t(int d, size_t t): _device_id(d), _total_memory(t), _curr_size(0), _head(0), _tail(0) {
+memory_cache_t::memory_cache_t(int d, size_t t, int r): _device_id(d), _total_memory(t), _curr_size(0), _head(0), _tail(0), _rank(r) {
     try {
         is_active = true;
         max_allocated = 0;
@@ -32,7 +32,9 @@ void memory_cache_t::shutdown() {
         is_active = false;
         _mem_lock.unlock();
         _mem_cv.notify_all();
+        DBG("[" << _rank << "]" << "Memory cache shutdown starting");
         malloc_thread.join();
+        DBG("[" << _rank << "]" <<"Memory cache shutdown complete");
     } catch (std::exception &e) {
         FATAL("Exception caught in memory cache destructor." << e.what());
     } catch (...) {
@@ -55,7 +57,7 @@ void memory_cache_t::allocate_pin_mem() {
         omp_set_num_threads(MALLOC_THREADS);
         TIMER_START(alloc_starting);
         size_t rem = _total_memory;
-        while (max_allocated != _total_memory) {
+        while (max_allocated != _total_memory && is_active) {
             size_t chunk = MIN_CHUNK_SIZE < rem ? MIN_CHUNK_SIZE : rem;
             #pragma omp parallel
             {
@@ -81,6 +83,8 @@ void memory_cache_t::allocate_pin_mem() {
             _mem_cv.notify_all();
             rem -= chunk;
         }
+        if (!is_active)
+            return;
         if (max_allocated != _total_memory) 
             FATAL("Max allocated is not same as total " << max_allocated << " total was " << _total_memory);
         TIMER_STOP(alloc_starting, "Simple malloc and touch done", _total_memory);
@@ -90,7 +94,7 @@ void memory_cache_t::allocate_pin_mem() {
         _mem_lock.unlock();
         _mem_cv.notify_all();
         TIMER_STOP(pinning, "Time to pin memory", _total_memory);
-        TIMER_STOP(alloc_start, "Host memory allocation time on device " << _device_id, _total_memory);
+        TIMER_STOP(alloc_start, "Host memory allocation time on device " << _rank, _total_memory);
         return;
     } catch (std::exception &e) {
         FATAL("Exception caught in allocate pin memory." << e.what());
@@ -108,11 +112,13 @@ mem_region_t* memory_cache_t::_assign(const uint64_t uid, size_t h, size_t s) {
         }
         char *ptr = _start_ptr + h;
         mem_region_t *m = new mem_region_t(uid, ptr, h, h+s);
-        _head = (h + s)%_total_memory;
+        _head = h + s;
+        if (_head > _total_memory)
+            _head = 0;
         _curr_size += s;
         _mem_q.push_back(m);
         // _print_trace();
-        DBG("[" << _device_id << "]" << "Assigned " << uid << " head " << h << " of size " << s << " curr size " << _curr_size << " cur head " << _head  << " cur tail " << _tail);
+        DBG("[" << _rank << "]" << "Assigned " << uid << " head " << h << " of size " << s << " curr size " << _curr_size << " cur head " << _head  << " cur tail " << _tail);
         return m;
     } catch (std::exception &e) {
         FATAL("Exception caught in _assign." << e.what());
@@ -123,9 +129,9 @@ mem_region_t* memory_cache_t::_assign(const uint64_t uid, size_t h, size_t s) {
 
 mem_region_t* memory_cache_t::allocate(const uint64_t uid, size_t s) {
     try {
-        DBG("[" << _device_id << "]" << "Attempting to allocate for " << uid << " of size " << s << " when current memory is " << _curr_size << " cur head " << _head  << " cur tail " << _tail);
+        DBG("[" << _rank << "]" << "Attempting to allocate for " << uid << " of size " << s << " when current memory is " << _curr_size << " cur head " << _head  << " cur tail " << _tail);
         if (s > _total_memory) 
-            FATAL("[" << _device_id << "]" <<"Cannot allocate size " << s << " larger than the pool of " << _total_memory);
+            FATAL("[" << _rank << "]" <<"Cannot allocate size " << s << " larger than the pool of " << _total_memory);
         mem_region_t* ptr = nullptr;
         std::unique_lock<std::mutex> _mem_lock(_mem_mutex);
         while(((max_allocated < _total_memory) || (_curr_size + s > _total_memory)) && is_active) {
@@ -148,10 +154,10 @@ mem_region_t* memory_cache_t::allocate(const uint64_t uid, size_t s) {
         if (ptr == nullptr) {
             // Now the tail is greater than head
             while(((_tail > _head) && (_tail - _head < s)) && is_active) {
-                DBG("[" << _device_id << "]" << "Waiting in second wait for " << uid << " _tail -head < s, head " << _head << " tail: " << _tail << " s " << s);
+                DBG("[" << _rank << "]" << "Waiting in second wait for " << uid << " _tail -head < s, head " << _head << " tail: " << _tail << " s " << s);
                 TIMER_START(wait_time);
                 _mem_cv.wait(_mem_lock);
-                TIMER_STOP(wait_time, "[" << _device_id << "]" << "Waiting for more memory " << _tail - _head << " uid " << uid << " size " << s << " head " << _head << " tail " << _tail, 10);
+                TIMER_STOP(wait_time, "[" << _rank << "]" << "Waiting for more memory " << _tail - _head << " uid " << uid << " size " << s << " head " << _head << " tail " << _tail, 10);
             }
             // This may happen when deallocate resets the tail pointer to 0 when tail+dealloc_size > max_buffer_cap
             if (_tail <= _head) {
@@ -169,7 +175,7 @@ mem_region_t* memory_cache_t::allocate(const uint64_t uid, size_t s) {
         }
         _mem_lock.unlock();
         _mem_cv.notify_all();
-        DBG("[" << _device_id << "]" << "Allocated for " << uid << " of size " << s << " when current memory is " << _curr_size << " cur head " << _head  << " cur tail " << _tail);
+        DBG("[" << _rank << "]" << "Allocated for " << uid << " of size " << s << " when current memory is " << _curr_size << " cur head " << _head  << " cur tail " << _tail);
         return ptr;
     } catch (std::exception &e) {
         FATAL("Exception caught in allocate function." << e.what());
@@ -180,7 +186,7 @@ mem_region_t* memory_cache_t::allocate(const uint64_t uid, size_t s) {
 
 void memory_cache_t::deallocate(uint64_t _uid, size_t s) {
     try {
-        DBG("[" << _device_id << "]" << "Attempting to deallocate " << _uid << " of size " << s << " cur size " << _curr_size << " cur head " << _head  << " cur tail " << _tail);
+        DBG("[" << _rank << "]" << "Attempting to deallocate " << _uid << " of size " << s << " cur size " << _curr_size << " cur head " << _head  << " cur tail " << _tail);
         if (_mem_q.empty() || _uid < 1)
             return;
         mem_region_t *m = _mem_q.front();
@@ -202,7 +208,7 @@ void memory_cache_t::deallocate(uint64_t _uid, size_t s) {
         _mem_q.pop_front();
         _mem_lock.unlock();
         _mem_cv.notify_all();
-        DBG("[" << _device_id << "]" <<"Deallocated from host " << _uid << " of size " << s << " cur size " << _curr_size << " cur head " << _head  << " cur tail " << _tail);
+        DBG("[" << _rank << "]" <<"Deallocated from host " << _uid << " of size " << s << " cur size " << _curr_size << " cur head " << _head  << " cur tail " << _tail);
     } catch (std::exception &e) {
         FATAL("Exception caught in deallocate operation ." << e.what());
     } catch (...) {

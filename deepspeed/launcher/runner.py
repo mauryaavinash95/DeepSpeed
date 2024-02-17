@@ -490,7 +490,8 @@ def main(args=None):
 
     if not multi_node_exec:
         deepspeed_launch = [
-            # f"nsys profile --force-overwrite true -o /tmp/",
+            # f"nsys profile --force-overwrite true -o /home/am6429/dl-io/dl-io-outputs/output-llama2-swapping/",
+            # f"nsys profile",
             sys.executable, "-u", "-m", "deepspeed.launcher.launch", f"--world_info={world_info_base64}",
             f"--master_addr={args.master_addr}", f"--master_port={args.master_port}"
         ]

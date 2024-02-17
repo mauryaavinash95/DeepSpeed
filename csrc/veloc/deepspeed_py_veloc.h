@@ -50,18 +50,20 @@ class veloc_ckpt_t {
     cudaStream_t _cpy_stream;    
     memory_cache_t *mem;
     int writer_threads = 1;
+    int _rank = -1;
     
     public:
-    veloc_ckpt_t(size_t host_cache, int g, int _writer_threads = 1) {
+    veloc_ckpt_t(size_t host_cache, int g, int _writer_threads = 1, int rank=-1) {
         try {
             _gpu_id = g;
+            _rank = rank;
             writer_threads = _writer_threads;
             checkCuda(cudaSetDevice(_gpu_id));
             checkCuda(cudaStreamCreateWithFlags(&_cpy_stream, cudaStreamNonBlocking));
             is_active = true;
             _thread_d2h = std::thread([&] { _d2h_trf(); });
             _thread_h2f = std::thread([&] { _h2f_trf(); });
-            mem = new memory_cache_t(_gpu_id, host_cache);
+            mem = new memory_cache_t(_gpu_id, host_cache, _rank);
             _pending_d2h.clear();
             _pending_h2f.clear();
             DBG("Inited veloc_ckpt_t on GPU ID " << g << " for host cache size of (MB) " << (host_cache >> 20) << " with writer threads " << _writer_threads);

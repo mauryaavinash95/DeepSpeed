@@ -9,6 +9,7 @@ import torch
 
 from deepspeed import comm as dist
 from deepspeed.utils.logging import logger
+from deepspeed.utils import instrument_w_nvtx
 from deepspeed.runtime.swap_tensor.utils import swap_out_tensors, SwapBuffer
 from deepspeed.accelerator import get_accelerator
 
@@ -32,6 +33,7 @@ class AsyncTensorSwapper(object):
         self.timer_names = set()
         self.num_elements_swapped = 0
         self.dtype = None
+        logger.info(f"AsyncTensorSwapper initialized")
 
     def has_buffers(self):
         return len(self.all_buffers) > 0
@@ -65,7 +67,9 @@ class AsyncTensorSwapper(object):
 
         return pinned_buffers
 
+    @instrument_w_nvtx
     def swap_out_tensors(self, tensor_list, path_list):
+        logger.info(f"AsyncTensorSwapper, swapping out {len(tensor_list)}")
         for tensor, swap_path in zip(tensor_list, path_list):
             self._swap_out_tensor(tensor, swap_path)
 
@@ -73,7 +77,7 @@ class AsyncTensorSwapper(object):
         if dist.get_rank() == 0:
             element_size = torch.tensor([], dtype=self.dtype).element_size()
             swapped_GB = (self.num_elements_swapped * element_size) / (1024**3)
-            logger.debug(f'{message} num_elems = {self.num_elements_swapped}, {swapped_GB:5.2f} GB')
+            logger.info(f'AsyncTensorSwapper, {message} num_elems = {self.num_elements_swapped}, {swapped_GB:5.2f} GB')
 
     def _swap_out_tensor(self, tensor, swap_path):
         assert len(self.all_buffers) > 0

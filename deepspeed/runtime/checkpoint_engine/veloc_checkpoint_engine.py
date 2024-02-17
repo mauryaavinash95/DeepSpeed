@@ -9,6 +9,7 @@ from deepspeed.runtime.checkpoint_engine.checkpoint_engine import \
     CheckpointEngine
 from threading import Thread, Condition, Lock
 from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures
 from queue import Queue
 from collections import OrderedDict
 import time
@@ -18,6 +19,7 @@ import pickle
 import numpy as np
 import ctypes
 import io
+from collections import deque 
 from deepspeed.runtime.swap_tensor.constants import *
 import copy
 
@@ -47,9 +49,10 @@ class VELOCCheckpointEngine(CheckpointEngine):
             self.ckpt_engine = VelocCkptBuilder().load().veloc_ckpt_handle(
                     int(config_params["host_cache"] << 30), 
                     int(torch.cuda.current_device()),
-                    int(config_params["writer_threads"])
+                    int(config_params["writer_threads"]),
+                    self.rank
                     )
-            self.futures = None
+            self.futures = deque()
             self.executor = ThreadPoolExecutor(max_workers=int(config_params["writer_threads"]))
             # print(f"[VELOC] Init took {time.time()-t}")
         except Exception as exc2:
@@ -138,7 +141,8 @@ class VELOCCheckpointEngine(CheckpointEngine):
     def save(self, state_dict, path: str):
         try:
             # start_time = time.time()
-            self.executor.submit(self.save_background, state_dict, path)
+            f = self.executor.submit(self.save_background, state_dict, path)
+            self.futures.append(f)
             # logger.info(f"[VELOC] Saved {path}. in time {time.time()-start_time}")
             return True
         except Exception as exc:
@@ -169,5 +173,9 @@ class VELOCCheckpointEngine(CheckpointEngine):
         return 
     
     def shutdown(self):
+        t = time.time()
+        concurrent.futures.wait(self.futures)
+        res = self.ckpt_engine.shutdown()
         self.executor.shutdown(True)
-        return self.ckpt_engine.shutdown()
+        logger.info(f"[VELOC] Shutdown {time.time()-t}")
+        return res

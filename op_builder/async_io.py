@@ -29,7 +29,7 @@ class AsyncIOBuilder(OpBuilder):
         ]
 
     def include_paths(self):
-        return ['csrc/aio/py_lib', 'csrc/aio/common']
+        return ['csrc/aio/py_lib', 'csrc/aio/common', '/soft/datascience/conda/2023-01-10/mconda3/include/']
 
     def cxx_args(self):
         # -O0 for improved debugging, since performance is bound by I/O
