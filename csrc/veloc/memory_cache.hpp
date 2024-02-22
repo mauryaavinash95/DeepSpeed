@@ -77,14 +77,12 @@ class memory_cache_t {
     std::mutex _mem_mutex;
     std::condition_variable _mem_cv;
     std::deque<mem_region_t*> _mem_q;
-    std::thread malloc_thread;
     size_t max_allocated = 0;
     bool is_active = true;
     int _rank = -1;
 public:
     memory_cache_t(int d, size_t t, int rank);
     ~memory_cache_t();
-    void allocate_pin_mem();
     mem_region_t* _assign(const uint64_t uid, size_t h, size_t s);
     mem_region_t* allocate(const uint64_t uid, size_t s);
     void deallocate(uint64_t _uid, size_t s);

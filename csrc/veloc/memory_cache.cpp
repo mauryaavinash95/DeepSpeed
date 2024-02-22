@@ -3,8 +3,8 @@
 memory_cache_t::memory_cache_t(int d, size_t t, int r): _device_id(d), _total_memory(t), _curr_size(0), _head(0), _tail(0), _rank(r) {
     try {
         is_active = true;
+        checkCuda(cudaMallocHost(&_start_ptr, _total_memory))
         max_allocated = 0;
-        malloc_thread = std::thread([&] { allocate_pin_mem(); });
         DBG("Returned from the memory cache function..... ");
     } catch (std::exception &e) {
         FATAL("Exception caught in memory cache constructor." << e.what());
@@ -33,73 +33,11 @@ void memory_cache_t::shutdown() {
         _mem_lock.unlock();
         _mem_cv.notify_all();
         DBG("[" << _rank << "]" << "Memory cache shutdown starting");
-        malloc_thread.join();
         DBG("[" << _rank << "]" <<"Memory cache shutdown complete");
     } catch (std::exception &e) {
         FATAL("Exception caught in memory cache destructor." << e.what());
     } catch (...) {
         FATAL("Unknown exception caught in memory cache destructor.");
-    }
-}
-
-void memory_cache_t::allocate_pin_mem() {
-    try{
-        TIMER_START(alloc_start);
-        
-        checkCuda(cudaSetDevice(_device_id));
-        checkCuda(cudaFree(0));
-        int posix_memalign_result = posix_memalign((void **)&_start_ptr, HUGEPAGES_SIZE, _total_memory);
-        madvise(_start_ptr, _total_memory, MADV_HUGEPAGE);
-        if (posix_memalign_result != 0) {
-            FATAL("Error allocating hugepages: " << posix_memalign_result);
-        }
-        std::unique_lock<std::mutex> _mem_lock(_mem_mutex, std::defer_lock);
-        omp_set_num_threads(MALLOC_THREADS);
-        TIMER_START(alloc_starting);
-        size_t rem = _total_memory;
-        while (max_allocated != _total_memory && is_active) {
-            size_t chunk = MIN_CHUNK_SIZE < rem ? MIN_CHUNK_SIZE : rem;
-            #pragma omp parallel
-            {
-                char *buf = (char *)_start_ptr+max_allocated;
-                int id = omp_get_thread_num();
-                int num = omp_get_num_threads();
-                size_t my_size = chunk/num;
-                size_t my_start = id*my_size;
-                // if (touch_pages) {
-                // #pragma omp parallel for
-                // {
-                // for(size_t i = 0; i < my_size; i+=HUGEPAGES_SIZE)
-                for(size_t i = 0; i < my_size; i+=CACHE_LINE_SIZE)
-                    buf[my_start + i] = 0x00;
-                // }
-                // } else {
-                // memset(buf+my_start, 0, my_size);
-                // }
-            }
-            _mem_lock.lock();
-            max_allocated += chunk;
-            _mem_lock.unlock();
-            _mem_cv.notify_all();
-            rem -= chunk;
-        }
-        if (!is_active)
-            return;
-        if (max_allocated != _total_memory) 
-            FATAL("Max allocated is not same as total " << max_allocated << " total was " << _total_memory);
-        TIMER_STOP(alloc_starting, "Simple malloc and touch done", _total_memory);
-        TIMER_START(pinning);
-        _mem_lock.lock();
-        checkCuda(cudaHostRegister(_start_ptr, _total_memory, cudaHostRegisterPortable));   
-        _mem_lock.unlock();
-        _mem_cv.notify_all();
-        TIMER_STOP(pinning, "Time to pin memory", _total_memory);
-        TIMER_STOP(alloc_start, "Host memory allocation time on device " << _rank, _total_memory);
-        return;
-    } catch (std::exception &e) {
-        FATAL("Exception caught in allocate pin memory." << e.what());
-    } catch (...) {
-        FATAL("Unknown exception caught in allocate pin memory.");
     }
 }
 
@@ -134,9 +72,8 @@ mem_region_t* memory_cache_t::allocate(const uint64_t uid, size_t s) {
             FATAL("[" << _rank << "]" <<"Cannot allocate size " << s << " larger than the pool of " << _total_memory);
         mem_region_t* ptr = nullptr;
         std::unique_lock<std::mutex> _mem_lock(_mem_mutex);
-        while(((max_allocated < _total_memory) || (_curr_size + s > _total_memory)) && is_active) {
+        while((_curr_size + s > _total_memory) && is_active)
             _mem_cv.wait(_mem_lock);
-        }
         if (!is_active) {
             _mem_lock.unlock();
             _mem_cv.notify_all();
@@ -195,7 +132,6 @@ void memory_cache_t::deallocate(uint64_t _uid, size_t s) {
             std::cout << "Tried deleting " << _uid << " of size " << s <<  " at offset " << m->start_offset 
                 << " but front element was " << (void *)m->ptr << " of size " << m->end_offset-m->start_offset << std::endl;
             _print_trace();
-            // std::abort();
             return;
         }
         std::unique_lock<std::mutex> _mem_lock(_mem_mutex);

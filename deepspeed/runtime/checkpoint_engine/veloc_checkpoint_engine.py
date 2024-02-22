@@ -43,7 +43,6 @@ class VELOCCheckpointEngine(CheckpointEngine):
 
     def __init__(self, config_params, r):
         try:
-            # t = time.time()
             super().__init__(config_params, r)
             self.rank = r
             self.ckpt_engine = VelocCkptBuilder().load().veloc_ckpt_handle(
@@ -54,7 +53,6 @@ class VELOCCheckpointEngine(CheckpointEngine):
                     )
             self.futures = deque()
             self.executor = ThreadPoolExecutor(max_workers=int(config_params["writer_threads"]))
-            # print(f"[VELOC] Init took {time.time()-t}")
         except Exception as exc2:
             print("[ERROR]Got exception during VELOC init ", exc2)
             sys.exit(-1)
@@ -66,12 +64,9 @@ class VELOCCheckpointEngine(CheckpointEngine):
     # @instrument_w_nvtx
     def _parse_dict(self, ele, snapshot, async_copies_list):
         try:
-            if isinstance(ele, np.ndarray): # and ele.nbytes > ASYNC_CKPT_SIZE_MIN:
-                print("Got a numpy array")
-                # import pdb; pdb.set_trace();
+            if isinstance(ele, np.ndarray):
                 data_device = -1
                 snapshot = f"{len(async_copies_list)}-pickled-numpy"
-                # Storing in async_copies_list values: data_ptr, size_in_bytes, device_id, file_offset
                 async_copies_list.append([ele.ctypes.data, ele.nbytes, -1, 0])
             elif torch.is_tensor(ele) and ele.device.type == 'cuda':
                 if (ele.numel()*ele.element_size() > ASYNC_CKPT_SIZE_MIN):
@@ -91,7 +86,7 @@ class VELOCCheckpointEngine(CheckpointEngine):
                     snapshot[idx], async_copies_list = self._parse_dict(v, snapshot[idx], async_copies_list)
             else:
                 log_dist(f"[VELOC] Got in parse dict of type {type(ele)}: {ele}")
-                snapshot = ele # copy.deepcopy(ele)
+                snapshot = ele
             return snapshot, async_copies_list
         except Exception as exc:
             logger.info(f"[VELOC][ERROR] From _to_cpu, generated exception: {exc}")
@@ -132,9 +127,6 @@ class VELOCCheckpointEngine(CheckpointEngine):
                 file.write(str(len(headers)).encode("utf-8"))
                 file.write(headers)
                 file.write(serialized_dict)
-
-            # logger.info(f"[VELOC] In background meta-data thread saved {path} in time {time.time()-start_time}")
-            # sys.stdout = redirect._stdout
             return None
         except Exception as exc:
             logger.info(f"[VELOC][ERROR] From VELOC save_background, generated exception: {exc}")
@@ -142,16 +134,12 @@ class VELOCCheckpointEngine(CheckpointEngine):
 
     def save(self, state_dict, path: str):
         try:
-            # start_time = time.time()
             f = self.executor.submit(self.save_background, state_dict, path)
             self.futures.append(f)
-            # logger.info(f"[VELOC] Saved {path}. in time {time.time()-start_time}")
             return True
         except Exception as exc:
             logger.info(f"[VELOC][ERROR] From save, generated exception: {exc}")
             sys.exit(-1)
-            
-        
 
     def load(self, path: str, map_location=None):
         logger.info(f"[VELOC] Loading checkpoint from {path}...")
@@ -160,7 +148,6 @@ class VELOCCheckpointEngine(CheckpointEngine):
         return partition
 
     def commit(self, tag):
-        # self.ckpt_engine.wait(-1)
         logger.info(f"[VELOC] Checkpoint {tag} is ready now!")
         return True
 
