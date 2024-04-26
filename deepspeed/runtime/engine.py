@@ -941,10 +941,14 @@ class DeepSpeedEngine(Module):
             except ImportError as err:
                 logger.error(f"No torch_nebula was found! Will fall back to torch.save. Details: {err}")
                 self.checkpoint_engine = TorchCheckpointEngine()
-        elif self._config is not None and self._config.veloc_ckpt_config:
-            from deepspeed.runtime.checkpoint_engine.veloc_checkpoint_engine import \
-                    VELOCCheckpointEngine
-            self.checkpoint_engine = VELOCCheckpointEngine(self._config.veloc_ckpt_config, self.global_rank)
+        elif self._config is not None and self._config.datastates_config.enabled:
+            try:
+                from deepspeed.runtime.checkpoint_engine.datastates_checkpoint_engine import \
+                    DataStatesCheckpointEngine
+                self.checkpoint_engine = DataStatesCheckpointEngine(config_params=self._config.datastates_config.config, rank=dist.get_rank())
+            except ImportError as err:
+                logger.error(f"No datastates was found! Will fall back to torch.save. Details: {err}")
+                sys.exit(-1)
         elif self._config is not None and self._config.async_ckpt_config:
             from deepspeed.runtime.checkpoint_engine.async_checkpoint_engine import AsyncCheckpointEngine
             self.checkpoint_engine = AsyncCheckpointEngine(self._config.async_ckpt_config, self.global_rank)
@@ -3200,9 +3204,10 @@ class DeepSpeedEngine(Module):
         # Save latest checkpoint tag
         # if self._config is not None and not self._config.veloc_ckpt_config and not self._config.async_ckpt_config:
         self.checkpoint_engine.commit(tag)
-        # if save_latest and rank == 0:
-        #     with open(os.path.join(save_dir, 'latest'), 'w') as fd:
-        #         fd.write(tag)
+        if save_latest and rank == 0:
+            with open(os.path.join(save_dir, 'latest'), 'w') as fd:
+                fd.write(tag)
+            
         dist.barrier()
 
         return True

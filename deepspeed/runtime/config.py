@@ -58,6 +58,7 @@ from ..elasticity.constants import (
 from ..profiling.config import DeepSpeedFlopsProfilerConfig
 from ..autotuning.config import DeepSpeedAutotuningConfig
 from ..nebula.config import DeepSpeedNebulaConfig
+from ..datastates.config import DeepSpeedDataStatesConfig
 
 from ..compression.config import get_compression_config, get_quantize_enabled
 from ..compression.constants import *
@@ -905,13 +906,7 @@ class DeepSpeedConfig(object):
         self.dataloader_drop_last = get_dataloader_drop_last(param_dict)
 
         self.nebula_config = DeepSpeedNebulaConfig(param_dict)
-
-
-        if "veloc_ckpt_config" in param_dict.keys():
-            self.veloc_ckpt_config = copy.deepcopy(param_dict["veloc_ckpt_config"])
-            self.veloc_ckpt_config["enabled"] = True
-        else:
-            self.veloc_ckpt_config = None
+        self.datastates_config = DeepSpeedDataStatesConfig(param_dict)
 
         if "async_ckpt_config" in param_dict.keys():
             self.async_ckpt_config = copy.deepcopy(param_dict["async_ckpt_config"])
