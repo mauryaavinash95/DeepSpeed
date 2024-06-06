@@ -415,13 +415,14 @@ class BF16_Optimizer(ZeROOptimizer):
                         checkpoint_folder,
                         load_optimizer_states=True,
                         load_from_fp32_weights=False,
-                        load_serial=None):
+                        load_serial=None,
+                        is_datastates_llm=False):
         if checkpoint_folder:
             self._load_universal_checkpoint(checkpoint_folder, load_optimizer_states, load_from_fp32_weights)
         else:
-            self._load_legacy_checkpoint(state_dict_list, load_optimizer_states, load_from_fp32_weights)
+            self._load_legacy_checkpoint(state_dict_list, load_optimizer_states, load_from_fp32_weights, is_datastates_llm)
 
-    def _load_legacy_checkpoint(self, state_dict_list, load_optimizer_states=True, load_from_fp32_weights=False):
+    def _load_legacy_checkpoint(self, state_dict_list, load_optimizer_states=True, load_from_fp32_weights=False, is_datastates_llm=False):
 
         dp_rank = dist.get_rank(group=self.dp_process_group)
         current_rank_sd = state_dict_list[dp_rank]
@@ -431,9 +432,9 @@ class BF16_Optimizer(ZeROOptimizer):
         ckpt_version = pkg_version.parse(ckpt_version)
 
         self.clip_grad = current_rank_sd.get(CLIP_GRAD, self.clip_grad)
-
+        
         if load_optimizer_states:
-            self.optimizer.load_state_dict(current_rank_sd[BASE_OPTIMIZER_STATE])
+            self.optimizer.load_state_dict(current_rank_sd[BASE_OPTIMIZER_STATE], is_datastates_llm)
 
         if load_from_fp32_weights:
             for current, saved in zip(self.fp32_groups_flat_partition,

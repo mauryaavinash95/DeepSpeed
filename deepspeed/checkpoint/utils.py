@@ -51,8 +51,8 @@ def clone_tensors_for_torch_save(item, device=torch.device('cpu')):
         - copy of ``item`` with cloned tensors on target device
     """
     if torch.is_tensor(item):
-        # return item.detach().clone().to(device)
-        return item.clone().detach()
+        return item.detach().clone().to(device)
+        # return item.clone().detach()
         # return item.contiguous().detach()
     elif isinstance(item, list):
         return [clone_tensors_for_torch_save(v, device) for v in item]

@@ -2666,6 +2666,8 @@ class DeepSpeedEngine(Module):
 
         if checkpoint.get(FROZEN_PARAM_FRAGMENTS, None) is not None:
             saved_frozen_params = checkpoint[FROZEN_PARAM_FRAGMENTS]
+            print(f"In load_module_state_dict")
+            import pdb; pdb.set_trace();
             for param in self.module.parameters():
                 if param.requires_grad:
                     continue
@@ -2804,7 +2806,6 @@ class DeepSpeedEngine(Module):
                                                          load_lr_scheduler_states=load_lr_scheduler_states,
                                                          load_module_only=load_module_only,
                                                          custom_load_fn=custom_load_fn)
-
         load_zero_checkpoint = load_path is not None and (self.zero_optimization() or self.bfloat16_enabled())
         if load_zero_checkpoint:
             if load_optimizer_states and not load_module_only:
@@ -2998,13 +2999,13 @@ class DeepSpeedEngine(Module):
             zero_sd_list = self._get_all_zero_checkpoints(load_dir, tag)
             if zero_sd_list is None:
                 return False
-
         self.optimizer.load_state_dict(state_dict_list=zero_sd_list,
                                        load_optimizer_states=load_optimizer_states,
                                        load_from_fp32_weights=self.zero_load_from_fp32_weights(),
                                        checkpoint_folder=checkpoint_folder,
-                                       load_serial=load_serial)
-
+                                       load_serial=load_serial,
+                                       is_datastates_llm="DataStatesCheckpointEngine" in str(type(self.checkpoint_engine)))
+        
         if self.load_universal_checkpoint():
             logger.info(f'loaded universal zero checkpoints from {checkpoint_folder} for rank {self.global_rank}')
         else:
@@ -3205,8 +3206,9 @@ class DeepSpeedEngine(Module):
         # if self._config is not None and not self._config.veloc_ckpt_config and not self._config.async_ckpt_config:
         self.checkpoint_engine.commit(tag)
         if save_latest and rank == 0:
-            with open(os.path.join(save_dir, 'latest'), 'w') as fd:
-                fd.write(tag)
+            if not os.path.exists(os.path.join(save_dir, 'latest')):
+                with open(os.path.join(save_dir, 'latest'), 'w') as fd:
+                    fd.write(tag)
             
         dist.barrier()
 

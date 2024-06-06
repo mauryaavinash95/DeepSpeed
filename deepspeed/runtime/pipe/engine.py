@@ -1410,7 +1410,7 @@ class PipelineEngine(DeepSpeedEngine):
                 # Equivalent to: self._exec_forward_pass(buffer_id=0)
                 self._exec_instr = MethodType(self._INSTRUCTION_MAP[type(cmd)], self)
                 self._exec_instr(**cmd.kwargs)
-                print(f"[Rank {self.global_rank}] <<<{str(type(cmd))}:{time.time()-ts}>>>")
+                # print(f"[Rank {self.global_rank}] <<<{str(type(cmd))}:{time.time()-ts}>>>")
 
                 # if type(cmd) == schedule.OptimizerStep:
                 #     print("In after optimizer step")

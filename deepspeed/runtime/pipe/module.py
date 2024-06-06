@@ -22,6 +22,7 @@ from deepspeed.runtime.state_dict_factory import SDLoaderFactory
 from deepspeed.accelerator import get_accelerator
 from deepspeed.checkpoint.utils import clone_tensors_for_torch_save
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 class PipelineError(Exception):
     """Errors related to the use of deepspeed.PipelineModule """
@@ -604,7 +605,27 @@ class PipelineModule(nn.Module):
             checkpoint_engine.save(final_state_dict, model_ckpt_path)
             # logger.info(f"[SaveStateDict] ckpt engine save took {time.time()-t} for path {model_ckpt_path}")
 
+    
+    def datastates_llm_sd_loader(self, layer, strict, model_ckpt_list, version, checkpoint_engine, mp_world_size, mp_rank, module_key=None, is_pipe_parallel=True):
+        sd_loader = SDLoaderFactory.get_sd_loader(model_ckpt_list,
+                                                version=version,
+                                                checkpoint_engine=checkpoint_engine)
+        load_path, checkpoint, _ = sd_loader.load(mp_world_size, mp_rank, module_key=module_key, is_pipe_parallel=is_pipe_parallel)
+        layer.load_state_dict(checkpoint, strict=strict)
+        return
+
     def load_state_dir(self, load_dir, checkpoint_engine, strict=True):
+        num_loader_threads = 1
+        is_datastates_llm = False
+        futures = []
+        t = time.time()
+        sd_loader_time = 0
+        sd_loader_load_time = 0
+        sd_layer_load_sd_time = 0
+        if "DataStatesCheckpointEngine" in str(type(checkpoint_engine)):
+            num_loader_threads = 4
+            is_datastates_llm = True
+            executor = ThreadPoolExecutor(max_workers=num_loader_threads)
         for idx, layer in enumerate(self.forward_funcs):
             # Functions, etc. will not have state_dicts
             if not hasattr(layer, 'load_state_dict'):
@@ -615,19 +636,38 @@ class PipelineModule(nn.Module):
             mp_rank = self._grid.get_slice_parallel_rank()
             mp_world_size = self._grid.get_slice_parallel_world_size()
 
+            if is_datastates_llm:
+                version=2.0
+                module_key = None
+                is_pipe_parallel = True
+                f = executor.submit(self.datastates_llm_sd_loader, layer, strict, model_ckpt_list, version, checkpoint_engine, mp_world_size, mp_rank, module_key, is_pipe_parallel)
+                futures.append(f)
+                continue
+            intime = time.time()
             sd_loader = SDLoaderFactory.get_sd_loader(model_ckpt_list,
                                                       version=2.0,
                                                       checkpoint_engine=checkpoint_engine)
+            sd_loader_time += time.time()-intime
+            intime = time.time()
             load_path, checkpoint, _ = sd_loader.load(mp_world_size, mp_rank, module_key=None, is_pipe_parallel=True)
+            sd_loader_load_time += time.time()-intime
 
+            intime = time.time()
             layer.load_state_dict(checkpoint, strict=strict)
+            sd_layer_load_sd_time += time.time()-intime
 
             # if self._grid.data_parallel_id == 0:
             #     logger.info(
             #         f'RANK={self.global_rank} Loaded layer={idx+self._local_start} file={load_path}'
             #     )
 
+        if is_datastates_llm:
+            executor.shutdown(wait=True)
+        logger.info(f"[Rank {dist.get_rank()}] Loaded the layer_* in {time.time()-t}, sd_init {sd_loader_time}, sd_load: {sd_loader_load_time}, layer_load_sd: {sd_layer_load_sd_time}")
+
         self._synchronize_tied_weights()
+        
+        
 
     def _is_checkpointable(self, funcs):
 
